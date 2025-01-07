@@ -1,42 +1,85 @@
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
-#include <sys/types.h>
 #include <sys/ipc.h>
-#include <sys/sem.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <sys/wait.h>
+#include <sys/msg.h>
+#include <string.h>
+#include <signal.h>
+#include <ctype.h>
+
+#define MAX 255
+#define SERWER 1
+
+void handle_error(const char *msg)
+{
+    perror(msg);
+    exit(EXIT_FAILURE);
+}
+
+int ID_kolejki;
+
+void handle_sigint(int sig)
+{
+    if (msgctl(ID_kolejki, IPC_RMID, 0) == -1)
+    {
+		handle_error("msgctl");
+	}
+
+    printf("Kasjer konczy dzialanie\n");
+
+    exit(0);
+}
+
+struct komunikat
+{
+    long mtype;
+    pid_t ktype;
+    char mtext[MAX];
+};
 
 int main()
 {
+    if (signal(SIGINT, handle_sigint) == SIG_ERR) 
+    {
+        handle_error("signal");
+    }
+    
+    key_t key = ftok(".", 17);
+	
+    ID_kolejki = msgget(key, IPC_CREAT | 0600);
+    if (ID_kolejki == -1)
+    {
+        handle_error("msgget");
+    }
+
+    struct komunikat odebrany, wyslany;
     int i;
 
-    key_t key = ftok(".", 28);
-
-    int semafor = semget(key, 1, 0600|IPC_CREAT);
-
-    semctl(semafor, 0, SETVAL, 5);
-
-    printf("Stworzono semafor %d\n", semafor);
-
-    for(i = 0; i<10; i++)
+    while (1)
     {
-        sleep(rand()%4);
-        if (fork() == 0)
+        printf("Serwer czeka na komunikat...\n");
+
+        odebrany.mtype = SERWER;
+        if (msgrcv(ID_kolejki, &odebrany, sizeof(odebrany) - sizeof(long), odebrany.mtype, 0) == -1)
         {
-            execl("./klient", "klient", NULL);
-            exit(0);
+			handle_error("msgrcv");
+        }
+
+        printf("Serwer odebral komunikat %s od %d\n", odebrany.mtext, odebrany.ktype);
+
+        wyslany.mtype = odebrany.ktype;
+        wyslany.ktype = odebrany.ktype;
+
+        for (i = 0; i < strlen(odebrany.mtext); i++)
+        {
+            wyslany.mtext[i] = toupper(odebrany.mtext[i]);
+        }
+
+        printf("Serwer wysyla komunikat %s do %d\n", wyslany.mtext, wyslany.ktype);
+        if (msgsnd(ID_kolejki, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+        {
+			handle_error("msgsnd");
         }
     }
-
-    for(i = 0; i<10; i++)
-    {
-        wait(NULL);
-    }
-
-    semctl(semafor, 0, IPC_RMID);
-    printf("Semafor usunięty\n");
 
     return 0;
 }

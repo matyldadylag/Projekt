@@ -1,44 +1,87 @@
+#include <pthread.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
-#include <sys/sem.h>
-#include <errno.h>
+#include <sys/msg.h>
 #include <string.h>
-#include <fcntl.h>
+#include <unistd.h>
 
-static void semafor_v(int semafor_id, int numer_semafora)
+#define MAX 255
+#define SERWER 1
+#define MSGMAX 8192
+
+int ID_kolejki;
+
+void* wysylanie();
+void* odbieranie();
+
+struct komunikat
 {
-        struct sembuf bufor_sem;
-        bufor_sem.sem_num = numer_semafora;
-        bufor_sem.sem_op = 1;
-        bufor_sem.sem_flg = SEM_UNDO;
+    long mtype;
+    pid_t ktype;
+    char mtext[MAX];
+};
 
-        semop(semafor_id, &bufor_sem, 1);
+void handle_error(const char *msg)
+{
+    perror(msg);
+    exit(EXIT_FAILURE);
 }
 
-static void semafor_p(int semafor_id, int numer_semafora)
+int main()
 {
-        struct sembuf bufor_sem;
-        bufor_sem.sem_num = numer_semafora;
-        bufor_sem.sem_op = -1;
-        bufor_sem.sem_flg = 0;
-        
-        semop(semafor_id, &bufor_sem, 1);
+    key_t key = ftok(".", 17);
+
+    ID_kolejki = msgget(key, IPC_CREAT | 0600);
+    if (ID_kolejki == -1)
+    {
+		handle_error("msgget");
+    }
+
+    pthread_t wysyla, odbiera;
+    if (pthread_create(&wysyla, NULL, wysylanie, NULL) != 0 || pthread_create(&odbiera, NULL, odbieranie, NULL) != 0)
+    {
+		handle_error("pthread_create");
+    }
+
+    if (pthread_join(wysyla, NULL) != 0 || pthread_join(odbiera, NULL))
+    {
+        handle_error("pthread_join");
+    }
+
+	return 0;
 }
 
-int main(int argc, char *argv[])
+
+void* wysylanie()
 {
-    key_t key = ftok(".", 28);
+    struct komunikat kom;
+    kom.mtype = SERWER;
+    kom.ktype = getpid();
 
-    int semafor = semget(key, 1, 0600|IPC_CREAT);
+    sprintf(kom.mtext, "Jestem klientem %d", getpid());
+	
+	printf("Klient %d wysyla komunikat\n", kom.ktype);
+	if (msgsnd(ID_kolejki, &kom, sizeof(kom) - sizeof(long), 0) == -1)
+	{
+		handle_error("msgsnd");	
+	}
+    
+    pthread_exit(NULL);
+}
 
-    semafor_p(semafor, 0);
-    printf("%d -> basen\n", getpid());
-    sleep(rand()%4);
-    semafor_v(semafor, 0);
-    printf("basen -> %d\n", getpid());
+void* odbieranie()
+{
+    struct komunikat kom;
+    kom.ktype = getpid();
 
-    return 0;
+	if (msgrcv(ID_kolejki, &kom, sizeof(struct komunikat) - sizeof(long), kom.ktype, 0) == -1)
+	{
+		handle_error("msgrcv");
+	}
+	
+	printf("Klient %d odebral komunikat: %s\n", kom.ktype, kom.mtext);
+    
+    pthread_exit(NULL);
 }

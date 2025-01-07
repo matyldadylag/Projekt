@@ -1,5 +1,0 @@
-Test czy wszystko dobrze dziala, drugi commit
-
-W programie kasjer pojawia się kolejka.
-Basen to semafor na X osób, jeśli jest miejsce to klient wchodzi.
-Losowo generuje się proces w programie 'kasjer', obniża semafor.
