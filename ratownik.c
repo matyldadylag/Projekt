@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 // TODO Okreslic wartosci dla kolejki komunikatow
+#define MAKS_LICZBA_KLIENTOW 2
 #define MAKS_DLUGOSC_KOMUNIKATU 255
 #define KASJER 1
 #define RATOWNIK1 2
@@ -55,6 +56,13 @@ int ID_kolejki_ratownik_wypuszcza;
 int ID_semafora;
 pthread_t przyjmuje, wypuszcza;
 
+// Tablica przechowująca PID klientów aktualnie na basenie
+pid_t klienci_w_basenie[MAKS_LICZBA_KLIENTOW];
+// Licznik klientów aktualnie na basenie
+int licznik_klientow = 0;
+// Muteks chroniący powyższe zasoby
+pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 // Obsługa SIGINT
 void SIGINT_handler(int sig)
 {
@@ -86,7 +94,7 @@ int main()
     // Utworzenie semafora
     key_t klucz_semafora = ftok(".", 9447);
     ID_semafora = semget(klucz_semafora, 1, 0600|IPC_CREAT);
-    semctl(ID_semafora, 0, SETVAL, 2);
+    semctl(ID_semafora, 0, SETVAL, MAKS_LICZBA_KLIENTOW);
 
     // Utworzenie wątków do przyjmowania i wypuszczania klientów
     pthread_create(&przyjmuje, NULL, przyjmowanie, NULL);
@@ -111,6 +119,12 @@ void* przyjmowanie()
         // Przyjęcie klienta na basen
         semafor_p(ID_semafora, 0);
 
+        // Dodanie PID klienta do tablicy
+        // Blokada przez muteks
+        pthread_mutex_lock(&klient_mutex);
+        klienci_w_basenie[licznik_klientow++] = odebrany.ktype;
+        pthread_mutex_unlock(&klient_mutex);
+
         // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
         wyslany.mtype = odebrany.ktype;
         wyslany.ktype = odebrany.ktype;
@@ -131,6 +145,30 @@ void* wypuszczanie()
     {
         msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK2, 0);
         printf("%s", odebrany.mtext);
+
+        // Usuwanie PID klienta z tablicy
+        // Blokada przez muteks
+        pthread_mutex_lock(&klient_mutex);
+
+        // Znalezienie indeksu przy którym znajduje się PID klienta, który wychodzi
+        int indeks_klienta_do_usuniecia;
+        for (int i = 0; i < licznik_klientow; i++)
+        {
+            if (klienci_w_basenie[i] == odebrany.ktype)
+            {
+                indeks_klienta_do_usuniecia = i;
+                break;
+            }
+        }
+
+        // Przesuniecie pozostałych PID w tablicy
+        for (int i = indeks_klienta_do_usuniecia; i < licznik_klientow - 1; i++)
+        {
+            klienci_w_basenie[i] = klienci_w_basenie[i + 1];
+        }
+        licznik_klientow--;
+        
+        pthread_mutex_unlock(&klient_mutex);
 
         // Wypuszczenie klienta z basenu
         semafor_v(ID_semafora, 0);
