@@ -1,34 +1,30 @@
+// TODO Sprawdzic, ktore pliki naglowkowe sa potrzebne
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <errno.h>
 #include <stdlib.h>
-#include <wait.h>
+#include <sys/wait.h>
 
-pid_t PID_kasjera;
+// Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
+pid_t PID_kasjera, PID_ratownika;
 
 // Obsluga sygnalu SIGINT
-void handle_sigint(int sig)
+void SIGINT_handler(int sig)
 {
-    // Czeka na zakonczenie wszystkich uruchomionych programow
-    int status;
-    for (int j = 0; j < 11; j++)
-    {
-        wait(NULL);
-    }
-
-    // Zabija kasjera, ktory dziala w petli do momentu dostania SIGINT
+    // Zabija kasjera i ratownika, ktorzy dzialaja w petli do momentu dostania SIGINT
     kill(PID_kasjera, SIGINT);
+    kill(PID_ratownika, SIGINT);
+    
+    // Czeka na zakonczenie wszystkich uruchomionych programow (klientow)
+    while (wait(NULL) > 0);
 
     exit(0);
 }
 
 int main()
 {
-    signal(SIGINT, handle_sigint);
+    signal(SIGINT, SIGINT_handler);
 
     // Uruchomienie kasjera
     PID_kasjera = fork();
@@ -38,20 +34,28 @@ int main()
         exit(0);
     }
 
-    // Generowanie klientów
-    for(int i = 0; i < 10; i++)
+    // Uruchomienie ratownika
+    PID_ratownika = fork();
+    if(PID_ratownika == 0)
     {
-        if (fork() == 0)
-        {
-                execl("./klient", "klient", NULL);
-                exit(0);
-        }
-        sleep(3);
+        execl("./ratownik", "ratownik", NULL);
+        exit(0);
     }
 
-    while(1)
+    pid_t PID_klienta;
+
+    // Generowanie klientów
+    for(int i = 0; i < 2; i++)
     {
-        printf("Basen jest otwarty\n");
-        sleep(5);
+        PID_klienta = fork();
+        if(PID_klienta == 0)
+        {
+            execl("./klient", "klient", NULL);
+            exit(0);
+        }
+        sleep(4);
     }
+
+    // Czeka na zakończenie wszystkich procesów
+    while (wait(NULL) > 0);
 }

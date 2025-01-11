@@ -1,3 +1,4 @@
+// TODO Sprawdzic, ktore pliki naglowkowe sa potrzebne
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ipc.h>
@@ -6,29 +7,24 @@
 #include <signal.h>
 #include <ctype.h>
 
+// TODO Okreslic wartosci dla kolejki komunikatow
 #define MAX 255
-#define SERWER 1
+#define KASJER 1
+#define RATOWNIK 2
 
-void handle_error(const char *msg)
+// Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
+pid_t ID_kolejki_kasjer;
+
+// Obsługa SIGINT
+void SIGINT_handler(int sig)
 {
-    perror(msg);
-    exit(EXIT_FAILURE);
-}
-
-int ID_kolejki;
-
-void handle_sigint(int sig)
-{
-    if (msgctl(ID_kolejki, IPC_RMID, 0) == -1)
-    {
-		handle_error("msgctl");
-	}
-
-    printf("Kasjer konczy dzialanie\n");
+    // Usunięcie kolejki komunikatów
+    msgctl(ID_kolejki_kasjer, IPC_RMID, 0);
 
     exit(0);
 }
 
+// Struktura komunikatu
 struct komunikat
 {
     long mtype;
@@ -38,47 +34,29 @@ struct komunikat
 
 int main()
 {
-    if (signal(SIGINT, handle_sigint) == SIG_ERR) 
-    {
-        handle_error("signal");
-    }
+    signal(SIGINT, SIGINT_handler);
     
-    key_t key = ftok(".", 17);
-	
-    ID_kolejki = msgget(key, IPC_CREAT | 0600);
-    if (ID_kolejki == -1)
-    {
-        handle_error("msgget");
-    }
+    // Utworzenie kolejki dla kasjera
+    key_t klucz_kolejki_kasjer = ftok(".", 6377);
+    ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600);
 
     struct komunikat odebrany, wyslany;
-    int i;
 
-    while (1)
+    while(1)
     {
-        printf("Serwer czeka na komunikat...\n");
+        // Odebranie wiadomości od klienta
+        msgrcv(ID_kolejki_kasjer, &odebrany, sizeof(odebrany) - sizeof(long), KASJER, 0);
+        printf("%s", odebrany.mtext);
 
-        odebrany.mtype = SERWER;
-        if (msgrcv(ID_kolejki, &odebrany, sizeof(odebrany) - sizeof(long), odebrany.mtype, 0) == -1)
-        {
-			handle_error("msgrcv");
-        }
-
-        printf("Serwer odebral komunikat %s od %d\n", odebrany.mtext, odebrany.ktype);
-
+        // Kasjer zmienia wartości, aby wiadomość dotarła na PID klienta
         wyslany.mtype = odebrany.ktype;
         wyslany.ktype = odebrany.ktype;
 
-        for (i = 0; i < strlen(odebrany.mtext); i++)
-        {
-            wyslany.mtext[i] = toupper(odebrany.mtext[i]);
-        }
+        // Utworzenie wiadomości
+        sprintf(wyslany.mtext, "Kasjer->Klient: przyjmuję płatność %d\n", odebrany.ktype);
 
-        printf("Serwer wysyla komunikat %s do %d\n", wyslany.mtext, wyslany.ktype);
-        if (msgsnd(ID_kolejki, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
-        {
-			handle_error("msgsnd");
-        }
+        // Wysłanie wiadomości
+        msgsnd(ID_kolejki_kasjer, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
     }
 
     return 0;
