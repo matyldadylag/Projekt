@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
+#include <time.h>
 
 // TODO Okreslic wartosci dla kolejki komunikatow
 #define MAKS_DLUGOSC_KOMUNIKATU 255
@@ -72,7 +73,12 @@ int main()
 	printf("%s", odebrany.mtext);
 
     // TODO Klient pilnuje ile czasu jest na basenie i kiedy musi wyjść
-    sleep(5);
+    time_t czas_wyjscia = time(NULL) + 15;
+
+    while (time(NULL) < czas_wyjscia)
+    {
+        sleep(1);
+    }
 
     // Komunikacja z ratownikiem (klient chce wyjść z basenu)
 

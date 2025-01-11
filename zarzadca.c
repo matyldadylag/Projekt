@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <time.h>
 
 // Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
 pid_t PID_kasjera, PID_ratownika;
@@ -45,7 +46,9 @@ int main()
     pid_t PID_klienta;
 
     // Generowanie klientów
-    for(int i = 0; i < 5; i++)
+    time_t czas_zamkniecia = time(NULL) + 120;
+
+    while (time(NULL) < czas_zamkniecia)
     {
         PID_klienta = fork();
         if(PID_klienta == 0)
@@ -53,6 +56,7 @@ int main()
             execl("./klient", "klient", NULL);
             exit(0);
         }
+        sleep(rand()%10);
     }
 
     // Czeka na zakończenie wszystkich procesów
