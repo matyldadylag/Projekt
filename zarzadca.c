@@ -45,7 +45,7 @@ int main()
     pid_t PID_klienta;
 
     // Generowanie klientów
-    for(int i = 0; i < 2; i++)
+    for(int i = 0; i < 5; i++)
     {
         PID_klienta = fork();
         if(PID_klienta == 0)
@@ -53,7 +53,6 @@ int main()
             execl("./klient", "klient", NULL);
             exit(0);
         }
-        sleep(4);
     }
 
     // Czeka na zakończenie wszystkich procesów

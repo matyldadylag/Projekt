@@ -13,7 +13,8 @@
 // TODO Okreslic wartosci dla kolejki komunikatow
 #define MAKS_DLUGOSC_KOMUNIKATU 255
 #define KASJER 1
-#define RATOWNIK 2
+#define RATOWNIK1 2
+#define RATOWNIK2 3
 
 // Struktura komunikatu
 struct komunikat
@@ -33,7 +34,7 @@ int main()
     // Uzyskanie dostępu do kolejki dla kasjera
     key_t klucz_kolejki_kasjer = ftok(".", 6377);
     int ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600);
-    
+
     // Klient ustawia takie wartości, aby wiadomość dotarła do kasjera
     wyslany.mtype = KASJER;
     wyslany.ktype = getpid();
@@ -49,25 +50,49 @@ int main()
 	msgrcv(ID_kolejki_kasjer, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.ktype, 0);
 	printf("%s", odebrany.mtext);
 
-    // Komunikacja z ratownikiem
+    // Komunikacja z ratownikiem (klient chce wejść na basen)
 
     // Utworzenie kolejki dla ratownika
-    key_t klucz_kolejki_ratownik = ftok(".", 7942);
-    int ID_kolejki_ratownik = msgget(klucz_kolejki_ratownik, IPC_CREAT | 0600);
+    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
+    int ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
 
     // Klient ustawia takie wartości, aby wiadomość dotarła do ratownika
-    wyslany.mtype = RATOWNIK;
+    wyslany.mtype = RATOWNIK1;
     wyslany.ktype = getpid();
     sprintf(wyslany.mtext, "Klient->Ratownik: jestem %d i chcę wejść na basen\n", wyslany.ktype);
 
 	// Klient wysyła wiadomość do ratownika
-	msgsnd(ID_kolejki_ratownik, &wyslany, sizeof(wyslany) - sizeof(long), 0);
+	msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(wyslany) - sizeof(long), 0);
 
     // Ratownik odsyła wiadomość na PID klienta, dlatego aby odebrać wiadomość klient ustawia ktype na swoje PID
     odebrany.ktype = getpid();
 
     // Klient odbiera wiadomość zwrotną od ratownika
-	msgrcv(ID_kolejki_ratownik, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.ktype, 0);
+	msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.ktype, 0);
+	printf("%s", odebrany.mtext);
+
+    // TODO Klient pilnuje ile czasu jest na basenie i kiedy musi wyjść
+    sleep(5);
+
+    // Komunikacja z ratownikiem (klient chce wyjść z basenu)
+
+    // Utworzenie kolejki dla ratownika
+    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
+    int ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
+
+    // Klient ustawia takie wartości, aby wiadomość dotarła do ratownika
+    wyslany.mtype = RATOWNIK2;
+    wyslany.ktype = getpid();
+    sprintf(wyslany.mtext, "Klient->Ratownik: jestem %d i chcę wyjść z basenu\n", wyslany.ktype);
+
+	// Klient wysyła wiadomość do ratownika
+	msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(wyslany) - sizeof(long), 0);
+
+    // Ratownik odsyła wiadomość na PID klienta, dlatego aby odebrać wiadomość klient ustawia ktype na swoje PID
+    odebrany.ktype = getpid();
+
+    // Klient odbiera wiadomość zwrotną od ratownika
+	msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.ktype, 0);
 	printf("%s", odebrany.mtext);
 
 	return 0;

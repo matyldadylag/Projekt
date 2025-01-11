@@ -13,7 +13,8 @@
 // TODO Okreslic wartosci dla kolejki komunikatow
 #define MAKS_DLUGOSC_KOMUNIKATU 255
 #define KASJER 1
-#define RATOWNIK 2
+#define RATOWNIK1 2
+#define RATOWNIK2 3
 
 // Struktura komunikatu
 struct komunikat
@@ -46,9 +47,11 @@ static void semafor_p(int semafor_id, int numer_semafora)
 
 // Funkcje dla wątków
 void* przyjmowanie();
+void* wypuszczanie();
 
 // Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
-int ID_kolejki;
+int ID_kolejki_ratownik_przyjmuje;
+int ID_kolejki_ratownik_wypuszcza;
 int ID_semafora;
 pthread_t przyjmuje, wypuszcza;
 
@@ -57,10 +60,11 @@ void SIGINT_handler(int sig)
 {
     // Anulowanie wątków przyjmowania i wypuszczania klientów
     pthread_kill(przyjmuje, SIGINT);
-    // TODO pthread_kill(wypuszcza, SIGINT);
+    pthread_kill(wypuszcza, SIGINT);
 
     // Usunięcie struktur
-    msgctl(ID_kolejki, IPC_RMID, 0);
+    msgctl(ID_kolejki_ratownik_przyjmuje, IPC_RMID, 0);
+    msgctl(ID_kolejki_ratownik_wypuszcza, IPC_RMID, 0);
     semctl(ID_semafora, 0, IPC_RMID);
 
     exit(0);
@@ -71,9 +75,13 @@ int main()
     // Obsługa SIGINT
     signal(SIGINT, SIGINT_handler);
     
-    // Utworzenie kolejki
-    key_t klucz_kolejki = ftok(".", 7942);
-    ID_kolejki = msgget(klucz_kolejki, IPC_CREAT | 0600);
+    // Utworzenie kolejki do przyjmowania klientów
+    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
+    ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
+
+    // Utworzenie kolejki do wypuszczania klientów
+    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
+    ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
 
     // Utworzenie semafora
     key_t klucz_semafora = ftok(".", 9447);
@@ -82,9 +90,10 @@ int main()
 
     // Utworzenie wątków do przyjmowania i wypuszczania klientów
     pthread_create(&przyjmuje, NULL, przyjmowanie, NULL);
-    // TODO pthread_create(&wypuszcza, NULL, wypuszczanie, NULL);
+    pthread_create(&wypuszcza, NULL, wypuszczanie, NULL);
 
     pthread_join(przyjmuje, NULL);
+    pthread_join(wypuszcza, NULL);
 
     return 0;
 }
@@ -96,7 +105,7 @@ void* przyjmowanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK, 0);
+        msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK1, 0);
         printf("%s", odebrany.mtext);
 
         // Przyjęcie klienta na basen
@@ -110,14 +119,30 @@ void* przyjmowanie()
         sprintf(wyslany.mtext, "Ratownik->Klient: przyjmuję %d na basen\n", odebrany.ktype);
 
         // Wysłanie wiadomości
-        msgsnd(ID_kolejki, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
-
-        // TODO na potrzeby testu zwalniam semafor zaraz po
-        sleep(3);
-        semafor_v(ID_semafora, 0);
+        msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
     }
 }
 
-/*TODO void* wypuszczanie()
+void* wypuszczanie()
 {
-}*/
+    struct komunikat odebrany, wyslany;
+
+    while(1)
+    {
+        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK2, 0);
+        printf("%s", odebrany.mtext);
+
+        // Wypuszczenie klienta z basenu
+        semafor_v(ID_semafora, 0);
+
+        // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
+        wyslany.mtype = odebrany.ktype;
+        wyslany.ktype = odebrany.ktype;
+
+        // Utworzenie wiadomości
+        sprintf(wyslany.mtext, "Ratownik->Klient: wypuszczam %d z basenu\n", odebrany.ktype);
+
+        // Wysłanie wiadomości
+        msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
+    }
+}
