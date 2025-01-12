@@ -1,16 +1,4 @@
-// TODO Sprawdzic, ktore pliki naglowkowe sa potrzebne
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <time.h>
-#include <sys/shm.h>
+#include "header.h"
 
 // TODO Okreslic wartosci dla kolejki komunikatow
 #define MAKS_DLUGOSC_KOMUNIKATU 255
@@ -27,8 +15,20 @@ struct komunikat
     char mtext[MAKS_DLUGOSC_KOMUNIKATU];
 };
 
+struct dane_klienta
+{
+    int PID;
+    int wiek;
+};
+
 int main()
 {
+    srand(getpid());
+
+    struct dane_klienta klient;
+    klient.PID = getpid();
+    klient.wiek = (rand() % 70) + 1;
+
     // Uzyskanie dostępu do pamięci dzielonej do przechowywania zmiennej czas_otwarcia
     key_t klucz_pamieci = ftok(".", 3213);
     int ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
@@ -67,7 +67,7 @@ int main()
     // Klient ustawia takie wartości, aby wiadomość dotarła do ratownika
     wyslany.mtype = RATOWNIK1;
     wyslany.ktype = getpid();
-    sprintf(wyslany.mtext, "[%.0f] Klient->Ratownik: jestem %d i chcę wejść na basen\n", difftime(time(NULL), *czas_otwarcia), wyslany.ktype);
+    sprintf(wyslany.mtext, "[%.0f] Klient->Ratownik: jestem %d i chcę wejść na basen. Mam %d lat\n", difftime(time(NULL), *czas_otwarcia), wyslany.ktype, klient.wiek);
 
 	// Klient wysyła wiadomość do ratownika
 	msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(wyslany) - sizeof(long), 0);

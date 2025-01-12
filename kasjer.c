@@ -1,13 +1,4 @@
-// TODO Sprawdzic, ktore pliki naglowkowe sa potrzebne
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-#include <string.h>
-#include <signal.h>
-#include <ctype.h>
-#include <time.h>
-#include <sys/shm.h>
+#include "header.h"
 
 // TODO Okreslic wartosci dla kolejki komunikatow
 #define MAX 255
