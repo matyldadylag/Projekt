@@ -6,6 +6,8 @@
 #include <string.h>
 #include <signal.h>
 #include <ctype.h>
+#include <time.h>
+#include <sys/shm.h>
 
 // TODO Okreslic wartosci dla kolejki komunikatow
 #define MAX 255
@@ -35,6 +37,11 @@ struct komunikat
 int main()
 {
     signal(SIGINT, SIGINT_handler);
+
+    // Uzyskanie dostępu do pamięci dzielonej do przechowywania zmiennej czas_otwarcia
+    key_t klucz_pamieci = ftok(".", 3213);
+    int ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
+    time_t* czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
     
     // Utworzenie kolejki dla kasjera
     key_t klucz_kolejki_kasjer = ftok(".", 6377);
@@ -53,7 +60,7 @@ int main()
         wyslany.ktype = odebrany.ktype;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "Kasjer->Klient: przyjmuję płatność %d\n", odebrany.ktype);
+        sprintf(wyslany.mtext, "[%.0f] Kasjer->Klient: przyjmuję płatność %d\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_kasjer, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

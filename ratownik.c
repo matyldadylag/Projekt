@@ -9,6 +9,8 @@
 #include <sys/sem.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <time.h>
+#include <sys/shm.h>
 
 // TODO Okreslic wartosci dla kolejki komunikatow
 #define MAKS_LICZBA_KLIENTOW 2
@@ -55,6 +57,7 @@ int ID_kolejki_ratownik_przyjmuje;
 int ID_kolejki_ratownik_wypuszcza;
 int ID_semafora;
 pthread_t przyjmuje, wypuszcza;
+time_t* czas_otwarcia;
 
 // Tablica przechowująca PID klientów aktualnie na basenie
 pid_t klienci_w_basenie[MAKS_LICZBA_KLIENTOW];
@@ -82,6 +85,11 @@ int main()
 {
     // Obsługa SIGINT
     signal(SIGINT, SIGINT_handler);
+
+    // Uzyskanie dostępu do pamięci dzielonej do przechowywania zmiennej czas_otwarcia
+    key_t klucz_pamieci = ftok(".", 3213);
+    int ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
+    czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
     
     // Utworzenie kolejki do przyjmowania klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
@@ -130,7 +138,7 @@ void* przyjmowanie()
         wyslany.ktype = odebrany.ktype;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "Ratownik->Klient: przyjmuję %d na basen\n", odebrany.ktype);
+        sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: przyjmuję %d na basen\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -178,7 +186,7 @@ void* wypuszczanie()
         wyslany.ktype = odebrany.ktype;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "Ratownik->Klient: wypuszczam %d z basenu\n", odebrany.ktype);
+        sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: wypuszczam %d z basenu\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

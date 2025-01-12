@@ -1,31 +1,45 @@
-// TODO Sprawdzic, ktore pliki naglowkowe sa potrzebne
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <stdlib.h>
 #include <sys/wait.h>
+#include <signal.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
-// Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
+#define CZAS_PRACY 60
+
+// Zdefiniowane globalnie, aby SIGINT_handler mógł usunąć struktury asynchronicznie
 pid_t PID_kasjera, PID_ratownika;
+int ID_pamieci;
+time_t* czas_otwarcia;
 
-// Obsluga sygnalu SIGINT
+// Obsługa sygnału SIGINT
 void SIGINT_handler(int sig)
 {
-    // Zabija kasjera i ratownika, ktorzy dzialaja w petli do momentu dostania SIGINT
+    // Wysyła SIGINT do procesów kasjera i ratownika
     kill(PID_kasjera, SIGINT);
     kill(PID_ratownika, SIGINT);
     
-    // Czeka na zakonczenie wszystkich uruchomionych programow (klientow)
-    while (wait(NULL) > 0);
+    shmctl(ID_pamieci, IPC_RMID, 0);
+    shmdt(czas_otwarcia);
 
     exit(0);
 }
 
 int main()
 {
+    // Obsługa sygnału SIGINT
     signal(SIGINT, SIGINT_handler);
+
+    // Utworzenie pamięci dzielonej do przechowywania zmiennej czas_otwarcia
+    key_t klucz_pamieci = ftok(".", 3213);
+    ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
+    czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
+
+    // Ustawienie czasu otwarcia, do którego inne procesy będą miały dostęp
+    *czas_otwarcia = time(NULL);
 
     // Uruchomienie kasjera
     PID_kasjera = fork();
@@ -43,10 +57,10 @@ int main()
         exit(0);
     }
 
+    // Generowanie klientów w losowych odstępach czasu
     pid_t PID_klienta;
 
-    // Generowanie klientów
-    time_t czas_zamkniecia = time(NULL) + 120;
+    time_t czas_zamkniecia = *czas_otwarcia + CZAS_PRACY;
 
     while (time(NULL) < czas_zamkniecia)
     {
@@ -59,6 +73,14 @@ int main()
         sleep(rand()%10);
     }
 
-    // Czeka na zakończenie wszystkich procesów
+    sleep(60);
+
+    kill(PID_kasjera, SIGINT);
+    kill(PID_ratownika, SIGINT);
+    shmctl(ID_pamieci, IPC_RMID, 0);
+    shmdt(czas_otwarcia);
+
     while (wait(NULL) > 0);
+
+    return 0; 
 }
