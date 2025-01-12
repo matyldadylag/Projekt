@@ -110,26 +110,44 @@ void* przyjmowanie()
     while(1)
     {
         msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK1, 0);
-        printf("%s", odebrany.mtext);
+        
+        int wiek = atoi(odebrany.mtext);
 
-        // Przyjęcie klienta na basen
-        semafor_p(ID_semafora, 0);
+        if(wiek>=18)
+        {
+            printf("[%.0f] Ratownik: przyjmuję %d na basen\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype);
 
-        // Dodanie PID klienta do tablicy
-        // Blokada przez muteks
-        pthread_mutex_lock(&klient_mutex);
-        klienci_w_basenie[licznik_klientow++] = odebrany.ktype;
-        pthread_mutex_unlock(&klient_mutex);
+            // Przyjęcie klienta na basen
+            semafor_p(ID_semafora, 0);
 
-        // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-        wyslany.mtype = odebrany.ktype;
-        wyslany.ktype = odebrany.ktype;
+            // Dodanie PID klienta do tablicy
+            // Blokada przez muteks
+            pthread_mutex_lock(&klient_mutex);
+            klienci_w_basenie[licznik_klientow++] = odebrany.ktype;
+            pthread_mutex_unlock(&klient_mutex);
 
-        // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: przyjmuję %d na basen\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype);
+            // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
+            wyslany.mtype = odebrany.ktype;
+            wyslany.ktype = odebrany.ktype;
 
-        // Wysłanie wiadomości
-        msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
+            // Utworzenie wiadomości
+            sprintf(wyslany.mtext, "OK");
+
+            // Wysłanie wiadomości
+            msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
+        }
+        else
+        {
+            // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
+            wyslany.mtype = odebrany.ktype;
+            wyslany.ktype = odebrany.ktype;
+
+            // Utworzenie wiadomości
+            sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: nie przyjmuję cię %d, bo wiek: %d\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype, wiek);
+
+            // Wysłanie wiadomości
+            msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
+        }
     }
 }
 
