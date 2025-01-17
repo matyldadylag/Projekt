@@ -1,10 +1,5 @@
 #include "header.h"
 
-// TODO Okreslic wartosci dla kolejki komunikatow
-#define MAX 255
-#define KASJER 1
-#define RATOWNIK 2
-
 // Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
 pid_t ID_kolejki_kasjer;
 
@@ -16,14 +11,6 @@ void SIGINT_handler(int sig)
 
     exit(0);
 }
-
-// Struktura komunikatu
-struct komunikat
-{
-    long mtype;
-    pid_t ktype;
-    char mtext[MAX];
-};
 
 int main()
 {
@@ -51,7 +38,7 @@ int main()
         wyslany.ktype = odebrany.ktype;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%.0f] Kasjer->Klient: przyjmuję płatność %d\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype);
+        sprintf(wyslany.mtext, "[%s] Kasjer->Klient: przyjmuję płatność %d\n", timestamp(), odebrany.ktype);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_kasjer, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

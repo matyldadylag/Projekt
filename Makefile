@@ -1,40 +1,40 @@
-all: zarzadca klient kasjer ratownik_basen_olimpijski ratownik_brodzik ratownik_basen_rekreacyjny
+all: zarzadca kasjer klient ratownik_basen_olimpijski ratownik_brodzik ratownik_basen_rekreacyjny
 
 zarzadca: zarzadca.o
-	gcc -o zarzadca zarzadca.o
+	gcc zarzadca.o -o zarzadca
 
 zarzadca.o: zarzadca.c header.h
-	gcc -c zarzadca.c
-
-klient: klient.o
-	gcc -o klient klient.o
-
-klient.o: klient.c header.h
-	gcc -c klient.c
+	gcc zarzadca.c -c
 
 kasjer: kasjer.o
-	gcc -o kasjer kasjer.o
+	gcc kasjer.o -o kasjer
 
 kasjer.o: kasjer.c header.h
-	gcc -c kasjer.c
+	gcc kasjer.c -c
+
+klient: klient.o
+	gcc klient.o -o klient
+
+klient.o: klient.c header.h
+	gcc klient.c -c
 
 ratownik_basen_olimpijski: ratownik_basen_olimpijski.o
-	gcc -o ratownik_basen_olimpijski ratownik_basen_olimpijski.o -lpthread
+	gcc ratownik_basen_olimpijski.o -o ratownik_basen_olimpijski -lpthread
 
 ratownik_basen_olimpijski.o: ratownik_basen_olimpijski.c header.h
-	gcc -c ratownik_basen_olimpijski.c
+	gcc ratownik_basen_olimpijski.c -c
 
 ratownik_brodzik: ratownik_brodzik.o
-	gcc -o ratownik_brodzik ratownik_brodzik.o -lpthread
+	gcc ratownik_brodzik.o -o ratownik_brodzik -lpthread
 
 ratownik_brodzik.o: ratownik_brodzik.c header.h
-	gcc -c ratownik_brodzik.c
+	gcc ratownik_brodzik.c -c
 
 ratownik_basen_rekreacyjny: ratownik_basen_rekreacyjny.o
-	gcc -o ratownik_basen_rekreacyjny ratownik_basen_rekreacyjny.o -lpthread
+	gcc ratownik_basen_rekreacyjny.o -o ratownik_basen_rekreacyjny -lpthread
 
 ratownik_basen_rekreacyjny.o: ratownik_basen_rekreacyjny.c header.h
-	gcc -c ratownik_basen_rekreacyjny.c
+	gcc ratownik_basen_rekreacyjny.c -c
 
 clean:
 	rm -f *.o

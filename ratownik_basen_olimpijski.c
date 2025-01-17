@@ -1,41 +1,5 @@
 #include "header.h"
 
-// TODO Okreslic wartosci dla kolejki komunikatow
-#define MAKS_LICZBA_KLIENTOW 2
-#define MAKS_DLUGOSC_KOMUNIKATU 255
-#define KASJER 1
-#define RATOWNIK1 2
-#define RATOWNIK2 3
-
-// Struktura komunikatu
-struct komunikat
-{
-    long mtype;
-    pid_t ktype;
-    char mtext[MAKS_DLUGOSC_KOMUNIKATU];
-};
-
-// Funkcje semafora
-static void semafor_v(int semafor_id, int numer_semafora)
-{
-    struct sembuf bufor_sem;
-    bufor_sem.sem_num = numer_semafora;
-    bufor_sem.sem_op = 1;
-    bufor_sem.sem_flg = SEM_UNDO;
-
-    semop(semafor_id, &bufor_sem, 1);
-}
-
-static void semafor_p(int semafor_id, int numer_semafora)
-{
-    struct sembuf bufor_sem;
-    bufor_sem.sem_num = numer_semafora;
-    bufor_sem.sem_op = -1;
-    bufor_sem.sem_flg = 0;
-    
-    semop(semafor_id, &bufor_sem, 1);
-}
-
 // Funkcje dla wątków
 void* przyjmowanie();
 void* wypuszczanie();
@@ -109,13 +73,13 @@ void* przyjmowanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK1, 0);
+        msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI_PRZYJMUJE, 0);
         
         int wiek = atoi(odebrany.mtext);
 
         if(wiek>=18)
         {
-            printf("[%.0f] Ratownik: przyjmuję %d na basen\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype);
+            printf("[%s] Ratownik: przyjmuję %d na basen\n", timestamp(), odebrany.ktype);
 
             // Przyjęcie klienta na basen
             semafor_p(ID_semafora, 0);
@@ -143,7 +107,7 @@ void* przyjmowanie()
             wyslany.ktype = odebrany.ktype;
 
             // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: nie przyjmuję cię %d, bo wiek: %d\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype, wiek);
+            sprintf(wyslany.mtext, "[%s] Ratownik->Klient: nie przyjmuję cię %d, bo wiek: %d\n", timestamp(), odebrany.ktype, wiek);
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -157,7 +121,7 @@ void* wypuszczanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK2, 0);
+        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI_WYPUSZCZA, 0);
         printf("%s", odebrany.mtext);
 
         // Usuwanie PID klienta z tablicy
@@ -192,7 +156,7 @@ void* wypuszczanie()
         wyslany.ktype = odebrany.ktype;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: wypuszczam %d z basenu\n", difftime(time(NULL), *czas_otwarcia), odebrany.ktype);
+        sprintf(wyslany.mtext, "[%s] Ratownik->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.ktype);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

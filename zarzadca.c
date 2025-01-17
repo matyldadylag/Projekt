@@ -1,9 +1,7 @@
 #include "header.h"
 
-#define CZAS_PRACY 60
-
 // Zdefiniowane globalnie, aby SIGINT_handler mógł usunąć struktury asynchronicznie
-pid_t PID_kasjera, PID_ratownika;
+pid_t PID_kasjera, PID_ratownika_olimpijski;
 int ID_pamieci;
 time_t* czas_otwarcia;
 
@@ -12,7 +10,7 @@ void SIGINT_handler(int sig)
 {
     // Wysyła SIGINT do procesów kasjera i ratownika
     kill(PID_kasjera, SIGINT);
-    kill(PID_ratownika, SIGINT);
+    kill(PID_ratownika_olimpijski, SIGINT);
     
     shmctl(ID_pamieci, IPC_RMID, 0);
     shmdt(czas_otwarcia);
@@ -42,10 +40,10 @@ int main()
     }
 
     // Uruchomienie ratownika
-    PID_ratownika = fork();
-    if(PID_ratownika == 0)
+    PID_ratownika_olimpijski = fork();
+    if(PID_ratownika_olimpijski == 0)
     {
-        execl("./ratownik", "ratownik", NULL);
+        execl("./ratownik_basen_olimpijski", "ratownik_basen_olimpijski", NULL);
         exit(0);
     }
 
@@ -68,7 +66,7 @@ int main()
     sleep(60);
 
     kill(PID_kasjera, SIGINT);
-    kill(PID_ratownika, SIGINT);
+    kill(PID_ratownika_olimpijski, SIGINT);
     shmctl(ID_pamieci, IPC_RMID, 0);
     shmdt(czas_otwarcia);
 
