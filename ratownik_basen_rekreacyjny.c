@@ -1,4 +1,4 @@
-#include "header.h"
+#include "utils.c"
 
 // Funkcje dla wątków
 void* przyjmowanie();
@@ -13,7 +13,7 @@ time_t* czas_otwarcia;
 double suma_wieku;
 
 // Tablica przechowująca PID klientów aktualnie na basenie
-pid_t klienci_w_basenie[MAKS_LICZBA_KLIENTOW];
+pid_t klienci_w_basenie[MAKS_REKREACYJNY];
 // Licznik klientów aktualnie na basenie
 int licznik_klientow = 0;
 // Muteks chroniący powyższe zasoby
@@ -45,17 +45,17 @@ int main()
     czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
     
     // Utworzenie kolejki do przyjmowania klientów
-    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 3213);
+    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
     ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
 
     // Utworzenie kolejki do wypuszczania klientów
-    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 9329);
+    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
     ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
 
     // Utworzenie semafora
     key_t klucz_semafora = ftok(".", 2003);
     ID_semafora = semget(klucz_semafora, 1, 0600|IPC_CREAT);
-    semctl(ID_semafora, 0, SETVAL, MAKS_LICZBA_KLIENTOW);
+    semctl(ID_semafora, 0, SETVAL, MAKS_REKREACYJNY);
 
     // Utworzenie wątków do przyjmowania i wypuszczania klientów
     pthread_create(&przyjmuje, NULL, przyjmowanie, NULL);
@@ -81,13 +81,13 @@ void* przyjmowanie()
 
         // Wykorzystuję zmienną temp, bo jeszcze nie wiem czy klienta przyjmę
         temp = suma_wieku + wiek;
-        printf("Średnia wieku na basenie %lf\n", temp);
+        printf("[%s] Średnia wieku na basenie %lf\n", timestamp(), temp);
 
         if(temp/(licznik_klientow+1)<=40)
         {
             suma_wieku+=wiek;
 
-            printf("[%.0f] Ratownik: przyjmuję %d na basen\n", timestamp(), odebrany.ktype);
+            printf("[%s] Ratownik rekreacyjny: przyjmuję %d na basen\n", timestamp(), odebrany.ktype);
 
             // Przyjęcie klienta na basen
             semafor_p(ID_semafora, 0);
@@ -115,7 +115,7 @@ void* przyjmowanie()
             wyslany.ktype = odebrany.ktype;
 
             // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: nie przyjmuję cię %d, bo średnia wieku jest za wysoka\n", timestamp(), odebrany.ktype);
+            sprintf(wyslany.mtext, "[%s] Ratownik rekreacyjny->Klient: nie przyjmuję cię %d, bo średnia wieku jest za wysoka\n", timestamp(), odebrany.ktype);
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -168,7 +168,7 @@ void* wypuszczanie()
         wyslany.ktype = odebrany.ktype;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.ktype);
+        sprintf(wyslany.mtext, "[%s] Ratownik rekreacyjny->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.ktype);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

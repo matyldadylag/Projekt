@@ -1,4 +1,4 @@
-#include "header.h"
+#include "utils.c"
 
 // Funkcje dla wątków
 void* przyjmowanie();
@@ -12,7 +12,7 @@ pthread_t przyjmuje, wypuszcza;
 time_t* czas_otwarcia;
 
 // Tablica przechowująca PID klientów aktualnie na basenie
-pid_t klienci_w_basenie[MAKS_LICZBA_KLIENTOW];
+pid_t klienci_w_basenie[MAKS_BRODZIK];
 // Licznik klientów aktualnie na basenie
 int licznik_klientow = 0;
 // Muteks chroniący powyższe zasoby
@@ -52,9 +52,9 @@ int main()
     ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
 
     // Utworzenie semafora
-    key_t klucz_semafora = ftok(".", 9447);
+    key_t klucz_semafora = ftok(".", 3293);
     ID_semafora = semget(klucz_semafora, 1, 0600|IPC_CREAT);
-    semctl(ID_semafora, 0, SETVAL, MAKS_LICZBA_KLIENTOW);
+    semctl(ID_semafora, 0, SETVAL, MAKS_BRODZIK);
 
     // Utworzenie wątków do przyjmowania i wypuszczania klientów
     pthread_create(&przyjmuje, NULL, przyjmowanie, NULL);
@@ -79,7 +79,7 @@ void* przyjmowanie()
 
         if(wiek>=18)
         {
-            printf("[%.0f] Ratownik: przyjmuję %d na basen\n", timestamp(), odebrany.ktype);
+            printf("[%s] Ratownik brodzik: przyjmuję %d na basen\n", timestamp(), odebrany.ktype);
 
             // Przyjęcie klienta na basen
             semafor_p(ID_semafora, 0);
@@ -107,7 +107,7 @@ void* przyjmowanie()
             wyslany.ktype = odebrany.ktype;
 
             // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: nie przyjmuję cię %d, bo wiek: %d\n", timestamp(), odebrany.ktype, wiek);
+            sprintf(wyslany.mtext, "[%s] Ratownik brodzik->Klient: nie przyjmuję cię %d, bo wiek: %d\n", timestamp(), odebrany.ktype, wiek);
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -156,7 +156,7 @@ void* wypuszczanie()
         wyslany.ktype = odebrany.ktype;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%.0f] Ratownik->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.ktype);
+        sprintf(wyslany.mtext, "[%s] Ratownik brodzik->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.ktype);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
