@@ -107,8 +107,9 @@ char* timestamp()
 
 // Kolorowanie tekstu
 const char *RESET = "\033[0m";
-const char *RED = "\033[31m";
-const char *GREEN = "\033[32m";
-const char *YELLOW = "\033[33m";
-const char *BLUE = "\033[34m";
-const char *MAGENTA = "\033[35m";
+const char *COLOR1 = "\033[38;2;228;3;3m";    // E40303 (Red)
+const char *COLOR2 = "\033[38;2;255;140;0m";  // FF8C00 (Orange)
+const char *COLOR3 = "\033[38;2;255;237;0m";  // FFED00 (Yellow)
+const char *COLOR4 = "\033[38;2;0;128;38m";   // 008026 (Green)
+const char *COLOR5 = "\033[38;2;0;76;255m";   // 004CFF (Blue)
+const char *COLOR6 = "\033[38;2;115;41;130m"; // 732982 (Purple)

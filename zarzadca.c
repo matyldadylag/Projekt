@@ -15,11 +15,11 @@ void SIGINT_handler(int sig)
     kill(PID_ratownika_olimpijski, SIGINT);
     
     // Zarządca czeka na zakończenie pozostałych procesów
-    printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", RED, timestamp(), RESET);    
+    printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", COLOR1, timestamp(), RESET);    
     while (wait(NULL) > 0);
     // Komunikaty o zakończeniu pracy
-    printf("%s[%s] Kompleks basenów jest zamknięty%s\n", RED, timestamp(), RESET);
-    printf("%s[%s] Zarządca kończy działanie%s\n", RED, timestamp(), RESET);
+    printf("%s[%s] Kompleks basenów jest zamknięty%s\n", COLOR1, timestamp(), RESET);
+    printf("%s[%s] Zarządca kończy działanie%s\n", COLOR1, timestamp(), RESET);
 
     exit(0);
 }
@@ -37,7 +37,7 @@ void* czasomierz()
     czas_przekroczony = true;
 
     // Wyświetla komunikat o osiągnięciu czasu zamknięcia
-    printf("%s[%s] Został osiągnięty czas zamknięcia%s\n", RED, timestamp(), RESET);
+    printf("%s[%s] Został osiągnięty czas zamknięcia%s\n", COLOR1, timestamp(), RESET);
 
     return 0;
 }
@@ -48,7 +48,7 @@ int main()
     signal(SIGINT, SIGINT_handler); // SIGINT wysyłany przez użytkownika lub zarządce po przekroczeniu czasu
 
     // Komunikat o uruchomieniu zarządcy
-    printf("%s[%s] Zarządca uruchomiony\n%s", RED, timestamp(), RESET);
+    printf("%s[%s] Zarządca uruchomiony\n%s", COLOR1, timestamp(), RESET);
 
     // Ustalenie maksymalnej liczby klientów
     printf("Podaj maksymalną liczbę klientów: ");
@@ -60,7 +60,7 @@ int main()
     int czas_pracy;
     scanf("%d", &czas_pracy); // Użytkownik podaje czas pracy programu
     // Komunikat o otwarciu kompleksu basenów
-    printf("%s[%s] Kompleks basenów jest otwarty%s\n", RED, timestamp(), RESET);
+    printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
     czas_zamkniecia = time(NULL) + czas_pracy; // Ustalenie czasu zamknięcia
 
     // Tworzymy wątek, który monitoruje czas zamknięcia
@@ -116,7 +116,7 @@ int main()
     // Wyświetlenie komunikatu o przekroczeniu maksymalnej liczby klientów
     if(maks_klientow == 0)
     {
-        printf("%s[%s] Została przekroczona maksymalna liczba klientów%s\n", RED, timestamp(), RESET);
+        printf("%s[%s] Została przekroczona maksymalna liczba klientów%s\n", COLOR1, timestamp(), RESET);
     }
 
     // Zarządca czeka, aż nadejdzie czas zamknięcia (jeśli czas został już przekroczony stanie się to od razu)

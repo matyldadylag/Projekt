@@ -10,7 +10,7 @@ void SIGINT_handler(int sig)
     msgctl(ID_kolejki_kasjer, IPC_RMID, 0);
 
     // Komunikat o zakończeniu działania kasjera
-    printf("%s[%s] Kasjer kończy działanie%s\n", YELLOW, timestamp(), RESET);
+    printf("%s[%s] Kasjer kończy działanie%s\n", COLOR3, timestamp(), RESET);
 
     exit(0);
 }
@@ -20,7 +20,7 @@ int main()
     signal(SIGINT, SIGINT_handler);
 
     // Komunikat o uruchomieniu kasjera
-    printf("%s[%s] Kasjer uruchomiony%s\n", YELLOW, timestamp(), RESET);
+    printf("%s[%s] Kasjer uruchomiony%s\n", COLOR3, timestamp(), RESET);
 
     // Utworzenie kolejki komunikatów dla kasjera
     key_t klucz_kolejki_kasjer = ftok(".", 6377);
@@ -38,29 +38,30 @@ int main()
         {
             if (odebrany.wiek_opiekuna == 0)
             {
-                printf("%s[%s] Kasjer przyjął klienta VIP %d%s\n", YELLOW, timestamp(), odebrany.PID, RESET);
+                printf("%s[%s] Kasjer przyjął klienta VIP %d%s\n", COLOR3, timestamp(), odebrany.PID, RESET);
             }
             else
             {
-                printf("%s[%s] Kasjer przyjął opiekuna klienta VIP %d z dzieckiem%s\n", YELLOW, timestamp(), odebrany.PID, RESET);
+                printf("%s[%s] Kasjer przyjął opiekuna klienta VIP %d z dzieckiem%s\n", COLOR3, timestamp(), odebrany.PID, RESET);
             }
         }
         else
         {
             if (odebrany.wiek_opiekuna == 0)
             {
-                printf("%s[%s] Kasjer przyjął płatność klienta %d%s\n", YELLOW, timestamp(), odebrany.PID, RESET);
+                printf("%s[%s] Kasjer przyjął płatność klienta %d%s\n", COLOR3, timestamp(), odebrany.PID, RESET);
             }
             else
             {
-                printf("%s[%s] Kasjer przyjął płatność opiekuna klienta %d. Dziecko wchodzi za darmo%s\n", YELLOW, timestamp(), odebrany.PID, RESET);
+                printf("%s[%s] Kasjer przyjął płatność opiekuna klienta %d. Dziecko wchodzi za darmo%s\n", COLOR3, timestamp(), odebrany.PID, RESET);
             }
         }
 
-        // Kasjer zmienia wartości, aby wiadomość dotarła na PID klienta
-        wyslany.mtype = odebrany.PID;
-        wyslany.PID = odebrany.PID;
+        // Kasjer przyjmuje klienta
         wyslany.pozwolenie = true;
+
+        // Kasjer zmienia wartości, aby wiadomość dotarła na PID klienta
+        wyslany.PID = odebrany.PID;
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_kasjer, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
