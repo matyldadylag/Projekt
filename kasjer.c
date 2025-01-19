@@ -9,6 +9,9 @@ void SIGINT_handler(int sig)
     // Usunięcie kolejki komunikatów
     msgctl(ID_kolejki_kasjer, IPC_RMID, 0);
 
+    // Komunikat o zakończeniu działania kasjera
+    printf("%s[%s] Kasjer kończy działanie%s\n", YELLOW, timestamp(), RESET);
+
     exit(0);
 }
 
@@ -16,49 +19,48 @@ int main()
 {
     signal(SIGINT, SIGINT_handler);
 
-    // Uzyskanie dostępu do pamięci dzielonej do przechowywania zmiennej czas_otwarcia
-    key_t klucz_pamieci = ftok(".", 3213);
-    int ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
-    time_t* czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
-    
-    // Utworzenie kolejki dla kasjera
+    // Komunikat o uruchomieniu kasjera
+    printf("%s[%s] Kasjer uruchomiony%s\n", YELLOW, timestamp(), RESET);
+
+    // Utworzenie kolejki komunikatów dla kasjera
     key_t klucz_kolejki_kasjer = ftok(".", 6377);
     ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600);
 
     struct komunikat odebrany, wyslany;
 
-    int wiek, wiek_opiekuna;
-
     while(1)
     {
         // Odebranie wiadomości od klienta
-        // mtype jest ustawiony na -2: to oznacza, że kasjer najpierw odbierze komunikaty o mtype 1, a potem komunikaty o mtype 2
+        // Kasjer ma w pierwszeństwie obsłużyć VIP (mtype 1). Zgodnie z działaniem kolejki obsługuje w pierwszeństwie najmnniejsze liczby <|-2|
         msgrcv(ID_kolejki_kasjer, &odebrany, sizeof(odebrany) - sizeof(long), -2, 0);
     
         if (odebrany.mtype == 1)
         {
-            printf("[%s] Kasjer: obsługuję klienta VIP %d\n", timestamp(), odebrany.ktype);
-        }
-        
-        if (odebrany.mtype == 2)
-        {
-            printf("[%s] Kasjer: obsługuję klienta %d\n", timestamp(), odebrany.ktype);
-        }
-        
-        if(odebrany.wiek_opiekuna == 0)
-        {
-            printf("[%s] Kasjer: przyjmuję płatność %d\n", timestamp(), odebrany.ktype);
+            if (odebrany.wiek_opiekuna == 0)
+            {
+                printf("%s[%s] Kasjer przyjął klienta VIP %d%s\n", YELLOW, timestamp(), odebrany.PID, RESET);
+            }
+            else
+            {
+                printf("%s[%s] Kasjer przyjął opiekuna klienta VIP %d z dzieckiem%s\n", YELLOW, timestamp(), odebrany.PID, RESET);
+            }
         }
         else
         {
-            printf("[%s] Kasjer: przyjmuję płatność opiekuna %d. Dziecko wchodzi za darmo\n", timestamp(), odebrany.ktype);
+            if (odebrany.wiek_opiekuna == 0)
+            {
+                printf("%s[%s] Kasjer przyjął płatność klienta %d%s\n", YELLOW, timestamp(), odebrany.PID, RESET);
+            }
+            else
+            {
+                printf("%s[%s] Kasjer przyjął płatność opiekuna klienta %d. Dziecko wchodzi za darmo%s\n", YELLOW, timestamp(), odebrany.PID, RESET);
+            }
         }
 
-
         // Kasjer zmienia wartości, aby wiadomość dotarła na PID klienta
-        wyslany.mtype = odebrany.ktype;
-        wyslany.ktype = odebrany.ktype;
-        wyslany.moze_wejsc = true;
+        wyslany.mtype = odebrany.PID;
+        wyslany.PID = odebrany.PID;
+        wyslany.pozwolenie = true;
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_kasjer, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

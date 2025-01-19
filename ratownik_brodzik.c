@@ -73,13 +73,13 @@ void* przyjmowanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK_PRZYJMUJE, 0);
+        msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0);
         
         int wiek = atoi(odebrany.mtext);
 
         if(wiek>=18)
         {
-            printf("[%s] Ratownik brodzik: przyjmuję %d na basen\n", timestamp(), odebrany.ktype);
+            printf("[%s] Ratownik brodzik: przyjmuję %d na basen\n", timestamp(), odebrany.PID);
 
             // Przyjęcie klienta na basen
             semafor_p(ID_semafora, 0);
@@ -87,12 +87,12 @@ void* przyjmowanie()
             // Dodanie PID klienta do tablicy
             // Blokada przez muteks
             pthread_mutex_lock(&klient_mutex);
-            klienci_w_basenie[licznik_klientow++] = odebrany.ktype;
+            klienci_w_basenie[licznik_klientow++] = odebrany.PID;
             pthread_mutex_unlock(&klient_mutex);
 
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-            wyslany.mtype = odebrany.ktype;
-            wyslany.ktype = odebrany.ktype;
+            wyslany.mtype = odebrany.PID;
+            wyslany.PID = odebrany.PID;
 
             // Utworzenie wiadomości
             sprintf(wyslany.mtext, "OK");
@@ -103,11 +103,11 @@ void* przyjmowanie()
         else
         {
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-            wyslany.mtype = odebrany.ktype;
-            wyslany.ktype = odebrany.ktype;
+            wyslany.mtype = odebrany.PID;
+            wyslany.PID = odebrany.PID;
 
             // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "[%s] Ratownik brodzik->Klient: nie przyjmuję cię %d, bo wiek: %d\n", timestamp(), odebrany.ktype, wiek);
+            sprintf(wyslany.mtext, "[%s] Ratownik brodzik->Klient: nie przyjmuję cię %d, bo wiek: %d\n", timestamp(), odebrany.PID, wiek);
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -121,7 +121,7 @@ void* wypuszczanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK_WYPUSZCZA, 0);
+        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0);
         printf("%s", odebrany.mtext);
 
         // Usuwanie PID klienta z tablicy
@@ -132,7 +132,7 @@ void* wypuszczanie()
         int indeks_klienta_do_usuniecia;
         for (int i = 0; i < licznik_klientow; i++)
         {
-            if (klienci_w_basenie[i] == odebrany.ktype)
+            if (klienci_w_basenie[i] == odebrany.PID)
             {
                 indeks_klienta_do_usuniecia = i;
                 break;
@@ -152,11 +152,11 @@ void* wypuszczanie()
         semafor_v(ID_semafora, 0);
 
         // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-        wyslany.mtype = odebrany.ktype;
-        wyslany.ktype = odebrany.ktype;
+        wyslany.mtype = odebrany.PID;
+        wyslany.PID = odebrany.PID;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%s] Ratownik brodzik->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.ktype);
+        sprintf(wyslany.mtext, "[%s] Ratownik brodzik->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.PID);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

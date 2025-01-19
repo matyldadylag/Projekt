@@ -13,34 +13,44 @@
 #include <time.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <pthread.h>
 
-#define BILET 5 // Maksymalny czas, jaki proces może spędzić na basenie (w sekundach)
+// Długość biletu czasowego - maksymalny czas, jaki proces może spędzić na basenie (w sekundach)
+#define BILET 5
 
-// Semafory basenów
-#define MAKS_OLIMPIJSKI 2 // Maksymalna liczba osób w basenie olimpijskim
-#define MAKS_REKREACYJNY 2 // Maksymalna liczba osób w basenie rekreacyjnym
-#define MAKS_BRODZIK 2 // Maksymalna liczba osób w brodziku
+// Semafory basenów - maksymalna liczba osób w danym basenie
+#define MAKS_OLIMPIJSKI 2
+#define MAKS_REKREACYJNY 2
+#define MAKS_BRODZIK 2
 
 // Kolejki komunikatów
 #define MAKS_DLUG_KOM 255 // Maksymalna długość przekazywanych komunikatów
 // Makrosy adresatów kolejek komunikatów
-#define KASJER 1
-#define RATOWNIK_OLIMPIJSKI_PRZYJMUJE 211
-#define RATOWNIK_OLIMPIJSKI_WYPUSZCZA 212
-#define RATOWNIK_REKREACYJNY_PRZYJMUJE 221
-#define RATOWNIK_REKREACYJNY_WYPUSZCZA 222
-#define RATOWNIK_BRODZIK_PRZYJMUJE 231
-#define RATOWNIK_BRODZIK_WYPUSZCZA 232
+#define KASJER_VIP 1 // Musi mieć mniejszą wartość niż KASJER
+#define KASJER 2
+#define RATOWNIK_OLIMPIJSKI 31
+#define RATOWNIK_REKREACYJNY 32
+#define RATOWNIK_BRODZIK 33
+
+// Struktura przechowująca dane klienta
+struct dane_klienta
+{
+    pid_t PID;
+    int wiek;
+    int wiek_opiekuna;
+    bool VIP;
+    bool czepek;
+    int wybor_basenu;
+};
 
 // Struktura komunikatu
 struct komunikat
 {
     long mtype;
-    pid_t ktype;
+    pid_t PID;
     int wiek;
     int wiek_opiekuna;
-    int VIP;
-    bool moze_wejsc;
+    bool pozwolenie;
     char mtext[MAKS_DLUG_KOM];
 };
 
@@ -93,3 +103,11 @@ char* timestamp()
 	strftime(time_str, sizeof(time_str), "%H:%M:%S", localtime(&(time_t){time(NULL)}));
 	return time_str;
 }
+
+// Kolorowanie tekstu
+const char *RESET = "\033[0m";
+const char *RED = "\033[31m";
+const char *GREEN = "\033[32m";
+const char *YELLOW = "\033[33m";
+const char *BLUE = "\033[34m";
+const char *MAGENTA = "\033[35m";

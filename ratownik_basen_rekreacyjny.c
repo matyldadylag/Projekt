@@ -75,7 +75,7 @@ void* przyjmowanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_REKREACYJNY_PRZYJMUJE, 0);
+        msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_REKREACYJNY, 0);
         
         int wiek = atoi(odebrany.mtext);
 
@@ -87,7 +87,7 @@ void* przyjmowanie()
         {
             suma_wieku+=wiek;
 
-            printf("[%s] Ratownik rekreacyjny: przyjmuję %d na basen\n", timestamp(), odebrany.ktype);
+            printf("[%s] Ratownik rekreacyjny: przyjmuję %d na basen\n", timestamp(), odebrany.PID);
 
             // Przyjęcie klienta na basen
             semafor_p(ID_semafora, 0);
@@ -95,12 +95,12 @@ void* przyjmowanie()
             // Dodanie PID klienta do tablicy
             // Blokada przez muteks
             pthread_mutex_lock(&klient_mutex);
-            klienci_w_basenie[licznik_klientow++] = odebrany.ktype;
+            klienci_w_basenie[licznik_klientow++] = odebrany.PID;
             pthread_mutex_unlock(&klient_mutex);
 
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-            wyslany.mtype = odebrany.ktype;
-            wyslany.ktype = odebrany.ktype;
+            wyslany.mtype = odebrany.PID;
+            wyslany.PID = odebrany.PID;
 
             // Utworzenie wiadomości
             sprintf(wyslany.mtext, "OK");
@@ -111,11 +111,11 @@ void* przyjmowanie()
         else
         {
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-            wyslany.mtype = odebrany.ktype;
-            wyslany.ktype = odebrany.ktype;
+            wyslany.mtype = odebrany.PID;
+            wyslany.PID = odebrany.PID;
 
             // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "[%s] Ratownik rekreacyjny->Klient: nie przyjmuję cię %d, bo średnia wieku jest za wysoka\n", timestamp(), odebrany.ktype);
+            sprintf(wyslany.mtext, "[%s] Ratownik rekreacyjny->Klient: nie przyjmuję cię %d, bo średnia wieku jest za wysoka\n", timestamp(), odebrany.PID);
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -129,7 +129,7 @@ void* wypuszczanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_REKREACYJNY_WYPUSZCZA, 0);
+        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_REKREACYJNY, 0);
         
         int wiek = atoi(odebrany.mtext);
         
@@ -141,7 +141,7 @@ void* wypuszczanie()
         int indeks_klienta_do_usuniecia;
         for (int i = 0; i < licznik_klientow; i++)
         {
-            if (klienci_w_basenie[i] == odebrany.ktype)
+            if (klienci_w_basenie[i] == odebrany.PID)
             {
                 indeks_klienta_do_usuniecia = i;
                 break;
@@ -164,11 +164,11 @@ void* wypuszczanie()
         suma_wieku-=wiek;
 
         // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-        wyslany.mtype = odebrany.ktype;
-        wyslany.ktype = odebrany.ktype;
+        wyslany.mtype = odebrany.PID;
+        wyslany.PID = odebrany.PID;
 
         // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%s] Ratownik rekreacyjny->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.ktype);
+        sprintf(wyslany.mtext, "[%s] Ratownik rekreacyjny->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.PID);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

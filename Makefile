@@ -1,7 +1,7 @@
 all: zarzadca kasjer klient ratownik_basen_olimpijski ratownik_brodzik ratownik_basen_rekreacyjny
 
 zarzadca: zarzadca.o
-	gcc zarzadca.o -o zarzadca
+	gcc zarzadca.o -o zarzadca -lpthread
 
 zarzadca.o: zarzadca.c utils.c
 	gcc zarzadca.c -c

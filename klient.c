@@ -1,114 +1,119 @@
 #include "utils.c"
 
-struct dane_klienta
+void SIGINT_handler(int sig)
 {
-    int PID;
-    int wiek;
-    int wiek_opiekuna;
-    int VIP;
-};
+    // Komunikat o zakończeniu działania klienta
+    printf("%s[%s] Klient %d kończy działanie%s\n", GREEN, timestamp(), getpid(), RESET);
+
+    exit(0);
+}
 
 int main()
 {
-    // Tablica do timestampów
-    char time_str[9];
+    // Obsługa SIGINT
+    signal(SIGINT, SIGINT_handler);
 
-    int ratownik_przyjmuje, ratownik_wypuszcza;
-
+    // Punkt początkowy do losowania na podstawie PID procesu
     srand(getpid());
 
+    // Zainicjowanie danych klienta
     struct dane_klienta klient;
     klient.PID = getpid();
-    klient.wiek = (rand() % 70) + 1;
-    klient.VIP = (rand() % 2) + 1;
-    if(klient.wiek<=10)
+    klient.wiek = (rand() % 70) + 1; // Losowo generuje wiek od 1 do 70 lat
+    klient.wiek_opiekuna = (klient.wiek <= 10) ? ((rand() % 53) + 19) : 0; // W wypadku, gdy klient.wiek <= 10 generuje się wiek opiekuna (między 18 a 70 lat)
+    klient.VIP = (rand() % 5 == 0); // Klient ma szansę 1:5 na bycie VIP
+    klient.czepek = (rand() % 5 == 0); // Klient ma szansę 1:5 na założenie czepka
+    // Wybór basenu (1 - brodzik, 2 - rekreacyjny, 3 - olimpijski)
+    if (klient.wiek <= 5)
     {
-        klient.wiek_opiekuna = (rand()%53) + 19;
-        if(klient.wiek<=3)
-        {
-            printf("[%s] Klientowi %d opiekun założył pampersa\n", timestamp(), getpid());
-        }
+        klient.wybor_basenu = (rand() % 2) + 1; // Jeśli klient ma <=5 lat może wybrać między basenem 1 i 2
     }
-    int wybor_basenu = rand()%3 + 1;
-    
-    if(wybor_basenu == 1)
+    else if (klient.wiek <= 18)
     {
-        ratownik_przyjmuje = RATOWNIK_OLIMPIJSKI_PRZYJMUJE;
-        ratownik_wypuszcza = RATOWNIK_OLIMPIJSKI_WYPUSZCZA;
-    }
-    else if(wybor_basenu == 2)
-    {
-        ratownik_przyjmuje = RATOWNIK_REKREACYJNY_PRZYJMUJE;
-        ratownik_wypuszcza = RATOWNIK_REKREACYJNY_WYPUSZCZA;
+        klient.wybor_basenu = 2; // Jeśli klient ma pomiędzy 5 a 18 lat może wybrać tylko basen 2
     }
     else
     {
-        ratownik_przyjmuje = RATOWNIK_BRODZIK_PRZYJMUJE;
-        ratownik_wypuszcza = RATOWNIK_BRODZIK_WYPUSZCZA;
+        klient.wybor_basenu = (rand() % 2) + 2; // Jeśli klient ma 18+ lat może wybrać między basen 2 i 3
     }
 
-    // Uzyskanie dostępu do pamięci dzielonej do przechowywania zmiennej czas_otwarcia
-    key_t klucz_pamieci = ftok(".", 3213);
-    int ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
-    time_t* czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
-
+    // Komunikat o uruchomieniu klienta
+    if(klient.wiek_opiekuna == 0)
+    {
+        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. VIP: %d. Czepek: %d\n%s", GREEN, timestamp(), klient.PID, klient.wiek, klient.VIP, klient.czepek, RESET);
+    }
+    else
+    {
+        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. Wiek opiekuna: %d. VIP: %d. Czepek: %d\n%s", GREEN, timestamp(), klient.PID, klient.wiek, klient.wiek_opiekuna, klient.VIP, klient.czepek, RESET);
+    }
+    
     // Deklaracja struktur do wysyłania i odbierania wiadomości od kasjera i ratownika
     struct komunikat wyslany, odebrany;
 
     // Komunikacja z kasjerem
-
-    // Uzyskanie dostępu do kolejki dla kasjera
     key_t klucz_kolejki_kasjer = ftok(".", 6377);
-    int ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600);
+    int ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600); // Uzyskanie dostępu do kolejki kasjera
 
-    // Klient ustawia takie wartości, aby wiadomość dotarła do kasjera
-    if(klient.VIP==1)
+    // Ustawienie wartości struktury wysłanej przez komunikat
+    if(klient.VIP==1) // W zależności od tego, czy klient jest VIP czy nie, ustawia inny mtype
     {
-        wyslany.mtype = 1;
+        wyslany.mtype = KASJER_VIP;
     }
-    if(klient.VIP==2)
+    else
     {
-        wyslany.mtype = 2;
+        wyslany.mtype = KASJER;
     }
-
-    wyslany.ktype = getpid();
+    wyslany.PID = klient.PID;
     wyslany.wiek = klient.wiek;
     wyslany.wiek_opiekuna = klient.wiek_opiekuna;
-    printf("%d wysyłam zapytanie do kasjera. Wiek: %d. Wiek opiekuna: %d\n", getpid(), klient.wiek, klient.wiek_opiekuna);
-
-	// Klient wysyła wiadomość do kasjera
+    // Wysyłanie komunikatu do kasjera
 	msgsnd(ID_kolejki_kasjer, &wyslany, sizeof(wyslany) - sizeof(long), 0);
 
-    // Kasjer odsyła wiadomość na PID klienta, dlatego aby odebrać wiadomość klient ustawia ktype na swoje PID
-    odebrany.ktype = getpid();
-
-    // Klient odbiera wiadomość zwrotną od kasjera
-	msgrcv(ID_kolejki_kasjer, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.ktype, 0);
-    if (odebrany.moze_wejsc = true)
+    // Ustawienie wartości do odebrania komunikatu od kasjera
+    odebrany.PID = wyslany.PID;
+    // Odbieranie komunikatu od kasjera
+	msgrcv(ID_kolejki_kasjer, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.PID, 0);
+    if (odebrany.pozwolenie == false) // Jeśli klient nie dostał pozwolenia na wejście, kończy swoje działanie
     {
-        printf("%d zostałem przyjęty\n");
+        raise(SIGINT);
     }
 
-    // Komunikacja z ratownikiem (klient chce wejść na basen)
+    // Komunikacja z ratownikiem    
+    // W zależności od wyboru basenu, klient wybiera z którym ratownik będzie się komunikował
+    int ratownik;
+    if(klient.wybor_basenu == 1)
+    {
+        ratownik = RATOWNIK_BRODZIK;
+    }
+    else if(klient.wybor_basenu == 2)
+    {
+        ratownik = RATOWNIK_REKREACYJNY;
+    }
+    else
+    {
+        ratownik = RATOWNIK_OLIMPIJSKI;
+    }
+
 
     // Utworzenie kolejki dla ratownika
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
     int ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
 
     // Klient ustawia takie wartości, aby wiadomość dotarła do ratownika
-    wyslany.mtype = ratownik_przyjmuje;
-    wyslany.ktype = getpid();
-    sprintf(wyslany.mtext, "%d", klient.wiek);
+    wyslany.mtype = ratownik;
+    wyslany.PID = klient.PID;
+    wyslany.wiek = klient.wiek;
+    wyslany.wiek_opiekuna = klient.wiek_opiekuna;
 
 	// Klient wysyła wiadomość do ratownika
-    printf("[%s] Klient: jestem %d. Wiek: %d. Chcę wejść na basen\n", timestamp(), getpid(), klient.wiek, wyslany.ktype);
+    printf("[%s] Klient: jestem %d. Wiek: %d. Chcę wejść na basen\n", timestamp(), getpid(), klient.wiek, wyslany.PID);
 	msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(wyslany) - sizeof(long), 0);
 
     // Ratownik odsyła wiadomość na PID klienta, dlatego aby odebrać wiadomość klient ustawia ktype na swoje PID
-    odebrany.ktype = getpid();
+    odebrany.PID = getpid();
 
     // Klient odbiera wiadomość zwrotną od ratownika
-	msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.ktype, 0);
+	msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.PID, 0);
 
     if(strcmp(odebrany.mtext, "OK") == 0)
     {
@@ -129,24 +134,27 @@ int main()
         int ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
 
         // Klient ustawia takie wartości, aby wiadomość dotarła do ratownika
-        wyslany.mtype = ratownik_wypuszcza;
-        wyslany.ktype = getpid();
-        sprintf(wyslany.mtext, "[%s] Klient->Ratownik: jestem %d i chcę wyjść z basenu\n", timestamp(), wyslany.ktype);
+        wyslany.mtype = ratownik;
+        wyslany.PID = getpid();
+        sprintf(wyslany.mtext, "[%s] Klient->Ratownik: jestem %d i chcę wyjść z basenu\n", timestamp(), wyslany.PID);
 
         // Klient wysyła wiadomość do ratownika
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(wyslany) - sizeof(long), 0);
 
         // Ratownik odsyła wiadomość na PID klienta, dlatego aby odebrać wiadomość klient ustawia ktype na swoje PID
-        odebrany.ktype = getpid();
+        odebrany.PID = getpid();
 
         // Klient odbiera wiadomość zwrotną od ratownika
-        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.ktype, 0);
+        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.PID, 0);
         printf("%s", odebrany.mtext);
     }
     else
     {
         printf("[%s] KLIENT NIEPRZYJĘTY %d\n%s", timestamp(), getpid(), odebrany.mtext); 
     }
+
+    // Gdy klient zakończy działanie wywołuje SIGINT
+    raise(SIGINT);
 
 	return 0;
 }
