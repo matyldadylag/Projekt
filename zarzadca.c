@@ -2,8 +2,6 @@
 
 // Definicje globalne
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski; // Identyfikatory struktur
-int ID_pamieci;
-time_t* czas_otwarcia; // Zmienne czasu
 time_t czas_zamkniecia;
 bool czas_przekroczony = false;
 
@@ -16,10 +14,6 @@ void SIGINT_handler(int sig)
     kill(PID_ratownika_rekreacyjny, SIGINT);
     kill(PID_ratownika_olimpijski, SIGINT);
     
-    // Usuwa pamięć dzieloną
-    shmctl(ID_pamieci, IPC_RMID, 0);
-    shmdt(czas_otwarcia);
-
     // Zarządca czeka na zakończenie pozostałych procesów
     printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", RED, timestamp(), RESET);    
     while (wait(NULL) > 0);
@@ -30,7 +24,7 @@ void SIGINT_handler(int sig)
     exit(0);
 }
 
-// Wątek mierzący czas - gdy zostanie osiągnięty czas zamknięcia, wątek wywołuje SIGINT
+// Wątek mierzący czas - gdy zostanie osiągnięty czas zamknięcia, przerywa generowanie klientów
 void* czasomierz()
 {
     // Sprawdza, czy został osiągnięty czas zamknięcia
@@ -59,20 +53,15 @@ int main()
     // Ustalenie maksymalnej liczby klientów
     printf("Podaj maksymalną liczbę klientów: ");
     int maks_klientow;
-    scanf("%d", &maks_klientow);
+    scanf("%d", &maks_klientow); // Użytkownik podaje maksymalną liczbę klientów
 
     // Obsługa czasu działania programu
-    // Utworzenie pamięci dzielonej do przechowywania zmiennej czas_otwarcia
-    key_t klucz_pamieci = ftok(".", 3213);
-    ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
-    czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
     printf("Podaj czas pracy basenu (w sekundach): ");
     int czas_pracy;
     scanf("%d", &czas_pracy); // Użytkownik podaje czas pracy programu
     // Komunikat o otwarciu kompleksu basenów
-    *czas_otwarcia = time(NULL); // Ustawienie czasu otwarcia, do którego inne procesy będą miały dostęp w pamięci dzielonej
     printf("%s[%s] Kompleks basenów jest otwarty%s\n", RED, timestamp(), RESET);
-    czas_zamkniecia = *czas_otwarcia + czas_pracy; // Ustalenie czasu zamknięcia
+    czas_zamkniecia = time(NULL) + czas_pracy; // Ustalenie czasu zamknięcia
 
     // Tworzymy wątek, który monitoruje czas zamknięcia
     pthread_t czas;
@@ -110,7 +99,7 @@ int main()
         exit(0);
     }
 
-    // Generowanie klientów w losowych odstępach czasu
+    // Generowanie klientów w losowych odstępach czasu, dopóki nie zostanie przekroczona maksymalna liczba klientów lub czas
     pid_t PID_klienta;
     while (maks_klientow > 0 && czas_przekroczony==false)
     {

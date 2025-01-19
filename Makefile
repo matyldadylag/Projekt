@@ -13,7 +13,7 @@ kasjer.o: kasjer.c utils.c
 	gcc kasjer.c -c
 
 klient: klient.o
-	gcc klient.o -o klient
+	gcc klient.o -o klient -lpthread
 
 klient.o: klient.c utils.c
 	gcc klient.c -c

@@ -28,9 +28,9 @@
 // Makrosy adresatów kolejek komunikatów
 #define KASJER_VIP 1 // Musi mieć mniejszą wartość niż KASJER
 #define KASJER 2
-#define RATOWNIK_OLIMPIJSKI 31
-#define RATOWNIK_REKREACYJNY 32
-#define RATOWNIK_BRODZIK 33
+#define RATOWNIK_OLIMPIJSKI 11
+#define RATOWNIK_REKREACYJNY 12
+#define RATOWNIK_BRODZIK 13
 
 // Struktura przechowująca dane klienta
 struct dane_klienta
@@ -41,6 +41,7 @@ struct dane_klienta
     bool VIP;
     bool czepek;
     int wybor_basenu;
+    int drugi_wybor_basenu;
 };
 
 // Struktura komunikatu
