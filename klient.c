@@ -42,24 +42,27 @@ int main()
     if (klient.wiek <= 5)
     {
         klient.wybor_basenu = (rand() % 2) + 11; // Jeśli klient ma <=5 lat może wybrać między basenem 11 i 12
+        klient.drugi_wybor_basenu = (klient.wybor_basenu == 11) ? 12 : 11; // Drugi wybór to basen, który nie został wybrany jako pierwszy
     }
     else if (klient.wiek <= 18)
     {
         klient.wybor_basenu = 12; // Jeśli klient ma pomiędzy 5 a 18 lat może wybrać tylko basen 12
+        klient.drugi_wybor_basenu = 12;
     }
     else
     {
         klient.wybor_basenu = (rand() % 2) + 12; // Jeśli klient ma 18+ lat może wybrać między basen 12 i 13
+        klient.drugi_wybor_basenu = (klient.wybor_basenu == 12) ? 13 : 12; // Drugi wybór to basen, który nie został wybrany jako pierwszy
     }
 
     // Komunikat o uruchomieniu klienta
     if(klient.wiek_opiekuna == 0)
     {
-        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. VIP: %d. Czepek: %d. Preferowany basen: %d\n%s", GREEN, timestamp(), klient.PID, klient.wiek, klient.VIP, klient.czepek, klient.wybor_basenu, RESET);
+        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. VIP: %d. Czepek: %d. Preferowane baseny: %d, %d\n%s", GREEN, timestamp(), klient.PID, klient.wiek, klient.VIP, klient.czepek, klient.wybor_basenu, klient.drugi_wybor_basenu, RESET);
     }
     else
     {
-        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. Wiek opiekuna: %d. VIP: %d. Czepek: %d. Preferowany basen: %d\n%s", GREEN, timestamp(), klient.PID, klient.wiek, klient.wiek_opiekuna, klient.VIP, klient.czepek, klient.wybor_basenu, RESET);
+        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. Wiek opiekuna: %d. VIP: %d. Czepek: %d. Preferowane baseny: %d, %d\n%s", GREEN, timestamp(), klient.PID, klient.wiek, klient.wiek_opiekuna, klient.VIP, klient.czepek, klient.wybor_basenu, klient.drugi_wybor_basenu, RESET);
     }
     
     // Deklaracja struktur do wysyłania i odbierania wiadomości od kasjera i ratownika
@@ -68,7 +71,6 @@ int main()
     // Komunikacja z kasjerem
     key_t klucz_kolejki_kasjer = ftok(".", 6377);
     int ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600); // Uzyskanie dostępu do kolejki kasjera
-
     // Ustawienie wartości struktury wysłanej przez komunikat
     if(klient.VIP==1) // W zależności od tego, czy klient jest VIP czy nie, ustawia inny mtype
     {
@@ -83,7 +85,6 @@ int main()
     wyslany.wiek_opiekuna = klient.wiek_opiekuna;
     // Wysyłanie komunikatu do kasjera
 	msgsnd(ID_kolejki_kasjer, &wyslany, sizeof(wyslany) - sizeof(long), 0);
-
     // Odbieranie komunikatu od kasjera
     odebrany.PID = wyslany.PID; // Ustawienie wartości do odebrania komunikatu od kasjera
 	msgrcv(ID_kolejki_kasjer, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.PID, 0);
@@ -111,11 +112,9 @@ int main()
         printf("%s[%s] Klient %d założył czepek\n%s", GREEN, timestamp(), klient.PID, RESET);
     }
 
-    // Komunikacja z ratownikiem    
-    // Utworzenie kolejki dla ratownika
+    // Komunikacja z ratownikiem
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
-    int ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
-
+    int ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600); // Utworzenie kolejki dla ratownika
     // Wysyłanie komunikatu do ratownika
     ratownik = klient.wybor_basenu;
     wyslany.mtype = ratownik;
@@ -123,20 +122,16 @@ int main()
     wyslany.wiek = klient.wiek;
     wyslany.wiek_opiekuna = klient.wiek_opiekuna;
 	msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(wyslany) - sizeof(long), 0);
-
     // Klient odbiera wiadomość zwrotną od ratownika
     odebrany.PID = klient.PID;
 	msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.PID, 0);    
 
-    // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
-    if(odebrany.pozwolenie == true)
+    if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
     {
         pthread_join(czas, NULL);
     }
-    else
+    else // Jeśli nie dostał się na basen, próbuje dostać się do swojego drugiego wyboru
     {
-        // Ponowna próba z drugim wyborem
-        // Klient ustawia takie wartości, aby wiadomość dotarła do ratownika
         ratownik = klient.drugi_wybor_basenu;
         wyslany.mtype = ratownik;
         wyslany.PID = klient.PID;
@@ -145,11 +140,10 @@ int main()
         msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(wyslany) - sizeof(long), 0);
 
         // Klient odbiera wiadomość zwrotną od ratownika
-        // Ratownik odsyła wiadomość na PID klienta, dlatego aby odebrać wiadomość klient ustawia swoje PID
         odebrany.PID = klient.PID;
         msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.PID, 0);
 
-        if(odebrany.pozwolenie == true)
+        if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
         {
             pthread_join(czas, NULL);
         }
@@ -160,23 +154,18 @@ int main()
     }
 
     // Komunikacja z ratownikiem, aby wyjść z basenu
-    // Utworzenie kolejki dla ratownika wypuszczającego
     key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
-    int ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
-    // Klient ustawia takie wartości, aby wiadomość dotarła do ratownika
+    int ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600); // Utworzenie kolejki dla ratownika wypuszczającego
+    // Klient wysyła wiadomość do ratownika
     wyslany.mtype = ratownik;
     wyslany.PID = klient.PID;
     wyslany.wiek = klient.wiek;
     wyslany.wiek_opiekuna = klient.wiek_opiekuna;
-    // Klient wysyła wiadomość do ratownika
     msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(wyslany) - sizeof(long), 0);
 
-    // Ratownik odsyła wiadomość na PID klienta, dlatego aby odebrać wiadomość klient ustawia ktype na swoje PID
-    odebrany.PID = klient.PID;
-
     // Klient odbiera wiadomość zwrotną od ratownika
+    odebrany.PID = klient.PID;
     msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(struct komunikat) - sizeof(long), odebrany.PID, 0);
-    printf("%s", odebrany.mtext);
 
     // Gdy klient zakończy działanie wywołuje SIGINT
     raise(SIGINT);
