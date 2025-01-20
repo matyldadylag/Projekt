@@ -2,7 +2,7 @@
 
 // Definicje globalne
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski; // Identyfikatory struktur
-int ID_pamieci;
+int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_pamieci;
 time_t czas_zamkniecia; // Zmienne dotyczące czasu korzystane przez funkcję main i wątek
 bool* czas_przekroczony;
 
@@ -18,6 +18,10 @@ void SIGINT_handler(int sig)
     // Zarządca czeka na zakończenie pozostałych procesów
     printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", COLOR1, timestamp(), RESET);    
     while (wait(NULL) > 0);
+
+    // Usuwa kolejki komunikatów ratowników
+    msgctl(ID_kolejki_ratownik_przyjmuje, IPC_RMID, 0);
+    msgctl(ID_kolejki_ratownik_wypuszcza, IPC_RMID, 0);
 
     // Usuwa segment pamięci dzielonej
     shmctl(ID_pamieci, IPC_RMID, 0);
@@ -70,6 +74,14 @@ int main()
     // Komunikat o otwarciu kompleksu basenów
     printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
     czas_zamkniecia = time(NULL) + czas_pracy; // Ustalenie czasu zamknięcia
+
+    // Utworzenie kolejek komunikatów dla ratowników
+    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
+    ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
+
+    // Utworzenie kolejki do wypuszczania klientów
+    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
+    ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
 
     // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
     key_t klucz_pamieci = ftok(".", 3213);

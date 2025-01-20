@@ -24,9 +24,15 @@ void SIGINT_handler(int sig)
     pthread_kill(przyjmuje, SIGINT);
     pthread_kill(wypuszcza, SIGINT);
 
+    // Wysłanie SIGINT do klientów z tablicy ratownika
+    pthread_mutex_lock(&klient_mutex); // Blokowanie tablicy
+    for (int i = 0; i < licznik_klientow; i++)
+    {
+        kill(klienci_w_basenie[i], SIGINT);
+    }
+    pthread_mutex_unlock(&klient_mutex); // Odblokowanie tablicy
+
     // Usunięcie struktur
-    msgctl(ID_kolejki_ratownik_przyjmuje, IPC_RMID, 0);
-    msgctl(ID_kolejki_ratownik_wypuszcza, IPC_RMID, 0);
     semctl(ID_semafora, 0, IPC_RMID);
 
     // Komunikat o zakończeniu działania ratownika basenu olimpijskiego
