@@ -2,21 +2,27 @@
 
 // Definicje globalne
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski; // Identyfikatory struktur
-time_t czas_zamkniecia;
-bool czas_przekroczony = false;
+int ID_pamieci;
+time_t czas_zamkniecia; // Zmienne dotyczące czasu korzystane przez funkcję main i wątek
+bool* czas_przekroczony;
 
 // Obsługa sygnału SIGINT
 void SIGINT_handler(int sig)
 {
     // Wysyła SIGINT do procesów kasjera i ratowników
-    kill(PID_kasjera, SIGINT);
     kill(PID_ratownika_brodzik, SIGINT);
     kill(PID_ratownika_rekreacyjny, SIGINT);
     kill(PID_ratownika_olimpijski, SIGINT);
-    
+    kill(PID_kasjera, SIGINT);
+
     // Zarządca czeka na zakończenie pozostałych procesów
     printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", COLOR1, timestamp(), RESET);    
     while (wait(NULL) > 0);
+
+    // Usuwa segment pamięci dzielonej
+    shmctl(ID_pamieci, IPC_RMID, 0);
+    shmdt(czas_przekroczony);
+
     // Komunikaty o zakończeniu pracy
     printf("%s[%s] Kompleks basenów jest zamknięty%s\n", COLOR1, timestamp(), RESET);
     printf("%s[%s] Zarządca kończy działanie%s\n", COLOR1, timestamp(), RESET);
@@ -34,18 +40,20 @@ void* czasomierz()
     }
 
     // Ustawia flagę na true
-    czas_przekroczony = true;
+    *czas_przekroczony = true;
 
     // Wyświetla komunikat o osiągnięciu czasu zamknięcia
     printf("%s[%s] Został osiągnięty czas zamknięcia%s\n", COLOR1, timestamp(), RESET);
 
-    return 0;
+    return NULL;
 }
 
 int main()
 {
     // Obsługa sygnałów
     signal(SIGINT, SIGINT_handler); // SIGINT wysyłany przez użytkownika lub zarządce po przekroczeniu czasu
+
+    srand(time(NULL));
 
     // Komunikat o uruchomieniu zarządcy
     printf("%s[%s] Zarządca uruchomiony\n%s", COLOR1, timestamp(), RESET);
@@ -62,6 +70,13 @@ int main()
     // Komunikat o otwarciu kompleksu basenów
     printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
     czas_zamkniecia = time(NULL) + czas_pracy; // Ustalenie czasu zamknięcia
+
+    // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
+    key_t klucz_pamieci = ftok(".", 3213);
+    ID_pamieci = shmget(klucz_pamieci, sizeof(bool), 0600 | IPC_CREAT);
+    czas_przekroczony = (bool*)shmat(ID_pamieci, NULL, 0);
+    // Inicjalizacja zmiennej jako "false" - czas nie został przekroczony
+    *czas_przekroczony = false;
 
     // Tworzymy wątek, który monitoruje czas zamknięcia
     pthread_t czas;
@@ -100,16 +115,15 @@ int main()
     }
 
     // Generowanie klientów w losowych odstępach czasu, dopóki nie zostanie przekroczona maksymalna liczba klientów lub czas
-    pid_t PID_klienta;
-    while (maks_klientow > 0 && czas_przekroczony==false)
+    while (maks_klientow > 0 && *czas_przekroczony==false)
     {
-        PID_klienta = fork();
+        pid_t PID_klienta = fork();
         if(PID_klienta == 0)
         {
             execl("./klient", "klient", NULL);
             exit(0);
         }
-        sleep(rand()%10);
+        sleep(rand()%3);
         maks_klientow--;
     }
 

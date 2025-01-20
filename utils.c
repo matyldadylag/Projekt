@@ -28,9 +28,9 @@
 // Makrosy adresatów kolejek komunikatów
 #define KASJER_VIP 1 // Musi mieć mniejszą wartość niż KASJER
 #define KASJER 2
-#define RATOWNIK_OLIMPIJSKI 11
+#define RATOWNIK_BRODZIK 11
 #define RATOWNIK_REKREACYJNY 12
-#define RATOWNIK_BRODZIK 13
+#define RATOWNIK_OLIMPIJSKI 13
 
 // Struktura przechowująca dane klienta
 struct dane_klienta
@@ -51,7 +51,8 @@ struct komunikat
     pid_t PID;
     int wiek;
     int wiek_opiekuna;
-    bool pozwolenie;
+    bool pozwolenie_kasjer;
+    bool pozwolenie_ratownik;
     char mtext[MAKS_DLUG_KOM];
 };
 

@@ -1,7 +1,6 @@
 #include "utils.c"
 
 time_t czas_wyjscia;
-int ratownik;
 
 // Funkcja do wysyłania komunikatów
 void wyslij_komunikat(int kolejka_id, struct komunikat* kom)
@@ -59,22 +58,8 @@ int main()
     klient.wiek_opiekuna = (klient.wiek <= 10) ? ((rand() % 53) + 19) : 0; // W wypadku, gdy klient.wiek <= 10 generuje się wiek opiekuna (między 18 a 70 lat)
     klient.VIP = (rand() % 5 == 0); // Klient ma szansę 1:5 na bycie VIP
     klient.czepek = (rand() % 5 == 0); // Klient ma szansę 1:5 na założenie czepka
-    // Wybór basenu (11 - brodzik, 12 - rekreacyjny, 13 - olimpijski)
-    if (klient.wiek <= 5)
-    {
-        klient.wybor_basenu = (rand() % 2) + 11; // Jeśli klient ma <=5 lat może wybrać między basenem 11 i 12
-        klient.drugi_wybor_basenu = (klient.wybor_basenu == 11) ? 12 : 11; // Drugi wybór to basen, który nie został wybrany jako pierwszy
-    }
-    else if (klient.wiek <= 18)
-    {
-        klient.wybor_basenu = 12; // Jeśli klient ma pomiędzy 5 a 18 lat może wybrać tylko basen 12
-        klient.drugi_wybor_basenu = 12;
-    }
-    else
-    {
-        klient.wybor_basenu = (rand() % 2) + 12; // Jeśli klient ma 18+ lat może wybrać między basen 12 i 13
-        klient.drugi_wybor_basenu = (klient.wybor_basenu == 12) ? 13 : 12; // Drugi wybór to basen, który nie został wybrany jako pierwszy
-    }
+    klient.wybor_basenu = 11 + rand() % 3; // Wybór basenu: 11 - brodzik, 12 - basen rekreacyjny, 13 - basen olimpijski
+    klient.drugi_wybor_basenu = 11 + rand() % 3; // Drugi wybór basenu
 
     // Komunikat o uruchomieniu klienta
     if(klient.wiek_opiekuna == 0)
@@ -103,8 +88,9 @@ int main()
     odbierz_komunikat(ID_kolejki_kasjer, &odebrany, wyslany.PID);
 
     // Jeśli klient nie został przyjęty przez kasjera, kończy swoje działanie
-    if(odebrany.pozwolenie == false)
+    if(odebrany.pozwolenie_kasjer == false)
     {
+        printf("umieram bo kasjera nie ma\n");
         raise(SIGINT);
     }
 
@@ -136,8 +122,8 @@ int main()
 
     // Klient odbiera wiadomość zwrotną od ratownika
     odbierz_komunikat(ID_kolejki_ratownik_przyjmuje, &odebrany, wyslany.PID);
-
-    if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
+    
+    if(odebrany.pozwolenie_ratownik == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
     {
         pthread_join(czas, NULL);
     }
@@ -149,7 +135,7 @@ int main()
         // Klient odbiera wiadomość zwrotną od ratownika
         odbierz_komunikat(ID_kolejki_ratownik_przyjmuje, &odebrany, wyslany.PID);
 
-        if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
+        if(odebrany.pozwolenie_ratownik == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
         {
             pthread_join(czas, NULL);
         }
@@ -169,7 +155,7 @@ int main()
     // Klient odbiera wiadomość zwrotną od ratownika
     odbierz_komunikat(ID_kolejki_ratownik_wypuszcza, &odebrany, wyslany.PID);
 
-    // Gdy klient zakończy działanie wywołuje SIGINT
+    // Gdy klient chce wyjść z basenu, wywołuje SIGINT
     raise(SIGINT);
 
     return 0;

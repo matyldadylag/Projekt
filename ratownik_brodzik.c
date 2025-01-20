@@ -9,7 +9,6 @@ int ID_kolejki_ratownik_przyjmuje;
 int ID_kolejki_ratownik_wypuszcza;
 int ID_semafora;
 pthread_t przyjmuje, wypuszcza;
-time_t* czas_otwarcia;
 
 // Tablica przechowująca PID klientów aktualnie na basenie
 pid_t klienci_w_basenie[MAKS_BRODZIK];
@@ -30,6 +29,9 @@ void SIGINT_handler(int sig)
     msgctl(ID_kolejki_ratownik_wypuszcza, IPC_RMID, 0);
     semctl(ID_semafora, 0, IPC_RMID);
 
+    // Komunikat o zakończeniu działania ratownika brodzika
+    //printf("%s[%s] Ratownik brodzika kończy działanie%s\n", COLOR4, timestamp(), RESET);
+
     exit(0);
 }
 
@@ -37,12 +39,10 @@ int main()
 {
     // Obsługa SIGINT
     signal(SIGINT, SIGINT_handler);
+  
+    // Komunikat o uruchomieniu ratownika brodzika
+    //printf("%s[%s] Ratownik brodzika uruchomiony%s\n", COLOR4, timestamp(), RESET);
 
-    // Uzyskanie dostępu do pamięci dzielonej do przechowywania zmiennej czas_otwarcia
-    key_t klucz_pamieci = ftok(".", 3213);
-    int ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
-    czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
-    
     // Utworzenie kolejki do przyjmowania klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
     ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
@@ -75,14 +75,14 @@ void* przyjmowanie()
     {
         msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0);
         
-        int wiek = atoi(odebrany.mtext);
+        int wiek = odebrany.wiek;
 
-        if(wiek>=18)
+        if(wiek<=5)
         {
-            printf("[%s] Ratownik brodzik: przyjmuję %d na basen\n", timestamp(), odebrany.PID);
+            //printf("%s[%s] Ratownik brodzika przyjął klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
 
             // Przyjęcie klienta na basen
-            semafor_p(ID_semafora, 0);
+            semafor_p_2(ID_semafora, 0);
 
             // Dodanie PID klienta do tablicy
             // Blokada przez muteks
@@ -93,21 +93,19 @@ void* przyjmowanie()
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
-
-            // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "OK");
+            wyslany.pozwolenie_ratownik = true;
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
         }
         else
         {
+            //printf("%s[%s] Ratownik brodzika nie przyjął klienta %d%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
+
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
-
-            // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "[%s] Ratownik brodzik->Klient: nie przyjmuję cię %d, bo wiek: %d\n", timestamp(), odebrany.PID, wiek);
+            wyslany.pozwolenie_ratownik = false;
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -122,7 +120,8 @@ void* wypuszczanie()
     while(1)
     {
         msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0);
-        printf("%s", odebrany.mtext);
+
+        //printf("%s[%s] Ratownik brodzika wypuścił klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
 
         // Usuwanie PID klienta z tablicy
         // Blokada przez muteks
@@ -149,14 +148,11 @@ void* wypuszczanie()
         pthread_mutex_unlock(&klient_mutex);
 
         // Wypuszczenie klienta z basenu
-        semafor_v(ID_semafora, 0);
+        semafor_v_2(ID_semafora, 0);
 
         // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
         wyslany.mtype = odebrany.PID;
         wyslany.PID = odebrany.PID;
-
-        // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%s] Ratownik brodzik->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.PID);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

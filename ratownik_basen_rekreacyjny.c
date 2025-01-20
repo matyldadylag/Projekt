@@ -9,7 +9,6 @@ int ID_kolejki_ratownik_przyjmuje;
 int ID_kolejki_ratownik_wypuszcza;
 int ID_semafora;
 pthread_t przyjmuje, wypuszcza;
-time_t* czas_otwarcia;
 double suma_wieku;
 
 // Tablica przechowująca PID klientów aktualnie na basenie
@@ -31,6 +30,9 @@ void SIGINT_handler(int sig)
     msgctl(ID_kolejki_ratownik_wypuszcza, IPC_RMID, 0);
     semctl(ID_semafora, 0, IPC_RMID);
 
+    // Komunikat o zakończeniu działania ratownika basenu rekreacyjnego
+    //printf("%s[%s] Ratownik basenu rekreacyjnego kończy działanie%s\n", COLOR6, timestamp(), RESET);
+
     exit(0);
 }
 
@@ -39,10 +41,8 @@ int main()
     // Obsługa SIGINT
     signal(SIGINT, SIGINT_handler);
 
-    // Uzyskanie dostępu do pamięci dzielonej do przechowywania zmiennej czas_otwarcia
-    key_t klucz_pamieci = ftok(".", 3213);
-    int ID_pamieci = shmget(klucz_pamieci, sizeof(time_t), 0600 | IPC_CREAT);
-    czas_otwarcia = (time_t*)shmat(ID_pamieci, NULL, 0);
+    // Komunikat o uruchomieniu ratownika basenu rekreacyjnego
+    //printf("%s[%s] Ratownik basenu rekreacyjnego uruchomiony%s\n", COLOR6, timestamp(), RESET);
     
     // Utworzenie kolejki do przyjmowania klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
@@ -77,17 +77,24 @@ void* przyjmowanie()
     {
         msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_REKREACYJNY, 0);
         
-        int wiek = atoi(odebrany.mtext);
+        int wiek = odebrany.wiek;
+        int wiek_opiekuna = odebrany.wiek_opiekuna;
 
-        // Wykorzystuję zmienną temp, bo jeszcze nie wiem czy klienta przyjmę
-        temp = suma_wieku + wiek;
-        printf("[%s] Średnia wieku na basenie %lf\n", timestamp(), temp);
-
-        if(temp/(licznik_klientow+1)<=40)
+        // Wykorzystuję zmienną temp, bo jeszcze nie wiem czy klienta przyjmę - sprawdzam czy średnia będzie za wysoka
+        if(wiek_opiekuna == 0)
+        {
+            temp = (suma_wieku + wiek)/(licznik_klientow+1);
+        }
+        else
+        {
+            temp = (suma_wieku + wiek + wiek_opiekuna)/(licznik_klientow+2);
+        }
+        
+        if(temp<=40)
         {
             suma_wieku+=wiek;
 
-            printf("[%s] Ratownik rekreacyjny: przyjmuję %d na basen\n", timestamp(), odebrany.PID);
+            //printf("[%s] Ratownik rekreacyjny: przyjmuję %d na basen\n", timestamp(), odebrany.PID);
 
             // Przyjęcie klienta na basen
             semafor_p(ID_semafora, 0);
