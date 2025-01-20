@@ -31,7 +31,7 @@ void SIGINT_handler(int sig)
     semctl(ID_semafora, 0, IPC_RMID);
 
     // Komunikat o zakończeniu działania ratownika basenu rekreacyjnego
-    //printf("%s[%s] Ratownik basenu rekreacyjnego kończy działanie%s\n", COLOR6, timestamp(), RESET);
+    printf("%s[%s] Ratownik basenu rekreacyjnego kończy działanie%s\n", COLOR5, timestamp(), RESET);
 
     exit(0);
 }
@@ -42,7 +42,7 @@ int main()
     signal(SIGINT, SIGINT_handler);
 
     // Komunikat o uruchomieniu ratownika basenu rekreacyjnego
-    //printf("%s[%s] Ratownik basenu rekreacyjnego uruchomiony%s\n", COLOR6, timestamp(), RESET);
+    printf("%s[%s] Ratownik basenu rekreacyjnego uruchomiony%s\n", COLOR5, timestamp(), RESET);
     
     // Utworzenie kolejki do przyjmowania klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
@@ -77,28 +77,17 @@ void* przyjmowanie()
     {
         msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_REKREACYJNY, 0);
         
-        int wiek = odebrany.wiek;
-        int wiek_opiekuna = odebrany.wiek_opiekuna;
-
         // Wykorzystuję zmienną temp, bo jeszcze nie wiem czy klienta przyjmę - sprawdzam czy średnia będzie za wysoka
-        if(wiek_opiekuna == 0)
-        {
-            temp = (suma_wieku + wiek)/(licznik_klientow+1);
-        }
-        else
-        {
-            temp = (suma_wieku + wiek + wiek_opiekuna)/(licznik_klientow+2);
-        }
+        temp = (suma_wieku + odebrany.wiek)/(licznik_klientow+1);
         
         if(temp<=40)
         {
-            suma_wieku+=wiek;
-
-            //printf("[%s] Ratownik rekreacyjny: przyjmuję %d na basen\n", timestamp(), odebrany.PID);
+            printf("%s[%s] Ratownik basenu rekreacyjnego przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
 
             // Przyjęcie klienta na basen
+            suma_wieku = suma_wieku + odebrany.wiek;
             semafor_p(ID_semafora, 0);
-
+           
             // Dodanie PID klienta do tablicy
             // Blokada przez muteks
             pthread_mutex_lock(&klient_mutex);
@@ -108,21 +97,19 @@ void* przyjmowanie()
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
-
-            // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "OK");
+            wyslany.pozwolenie = true;
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
         }
         else
         {
+            printf("%s[%s] Ratownik basenu rekreacyjnego nie przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
+
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
-
-            // Utworzenie wiadomości
-            sprintf(wyslany.mtext, "[%s] Ratownik rekreacyjny->Klient: nie przyjmuję cię %d, bo średnia wieku jest za wysoka\n", timestamp(), odebrany.PID);
+            wyslany.pozwolenie = false;
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -137,8 +124,8 @@ void* wypuszczanie()
     while(1)
     {
         msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_REKREACYJNY, 0);
-        
-        int wiek = atoi(odebrany.mtext);
+
+        printf("%s[%s] Ratownik basenu rekreacyjnego wypuścił klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
         
         // Usuwanie PID klienta z tablicy
         // Blokada przez muteks
@@ -168,14 +155,11 @@ void* wypuszczanie()
         semafor_v(ID_semafora, 0);
 
         // Obniżenie sumy wieku o wiek klienta
-        suma_wieku-=wiek;
+        suma_wieku = suma_wieku - odebrany.wiek;
 
         // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
         wyslany.mtype = odebrany.PID;
         wyslany.PID = odebrany.PID;
-
-        // Utworzenie wiadomości
-        sprintf(wyslany.mtext, "[%s] Ratownik rekreacyjny->Klient: wypuszczam %d z basenu\n", timestamp(), odebrany.PID);
 
         // Wysłanie wiadomości
         msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);

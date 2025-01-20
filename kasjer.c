@@ -65,14 +65,14 @@ int main()
             }
 
             // Kasjer przyjmuje klienta
-            wyslany.pozwolenie_kasjer = true;
+            wyslany.pozwolenie = true;
         }
         else
         {
             printf("%s[%s] Kasjer nie przyjął klienta %d%s\n", COLOR3, timestamp(), odebrany.PID, RESET);
 
             // Kasjer nie przyjmuje klienta
-            wyslany.pozwolenie_kasjer = false;
+            wyslany.pozwolenie = false;
         }
         
         // Kasjer zmienia wartości, aby wiadomość dotarła na PID klienta

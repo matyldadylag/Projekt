@@ -51,8 +51,7 @@ struct komunikat
     pid_t PID;
     int wiek;
     int wiek_opiekuna;
-    bool pozwolenie_kasjer;
-    bool pozwolenie_ratownik;
+    bool pozwolenie;
     char mtext[MAKS_DLUG_KOM];
 };
 

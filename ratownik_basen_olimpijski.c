@@ -30,7 +30,7 @@ void SIGINT_handler(int sig)
     semctl(ID_semafora, 0, IPC_RMID);
 
     // Komunikat o zakończeniu działania ratownika basenu olimpijskiego
-    //printf("%s[%s] Ratownik basenu olimpijskiego kończy działanie%s\n", COLOR5, timestamp(), RESET);
+    printf("%s[%s] Ratownik basenu olimpijskiego kończy działanie%s\n", COLOR6, timestamp(), RESET);
 
     exit(0);
 }
@@ -41,7 +41,7 @@ int main()
     signal(SIGINT, SIGINT_handler);
     
     // Komunikat o uruchomieniu ratownika brodzika
-    //printf("%s[%s] Ratownik basenu olimpijskiego uruchomiony%s\n", COLOR5, timestamp(), RESET);
+    printf("%s[%s] Ratownik basenu olimpijskiego uruchomiony%s\n", COLOR6, timestamp(), RESET);
 
     // Utworzenie kolejki do przyjmowania klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
@@ -75,11 +75,9 @@ void* przyjmowanie()
     {
         msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0);
         
-        int wiek = odebrany.wiek;
-
-        if(wiek>=18)
+        if(odebrany.wiek>=18)
         {
-            //printf("%s[%s] Ratownik olimpijski przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
+            printf("%s[%s] Ratownik olimpijski przyjął klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
 
             // Przyjęcie klienta na basen
             semafor_p(ID_semafora, 0);
@@ -93,19 +91,19 @@ void* przyjmowanie()
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
-            wyslany.pozwolenie_ratownik = true;
+            wyslany.pozwolenie = true;
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
         }
         else
         {
-            //printf("%s[%s] Ratownik olimpijski nie przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
+            printf("%s[%s] Ratownik olimpijski nie przyjął klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
 
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
-            wyslany.pozwolenie_ratownik = false;
+            wyslany.pozwolenie = false;
 
             // Wysłanie wiadomości
             msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
@@ -121,7 +119,7 @@ void* wypuszczanie()
     {
         msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0);
         
-        //printf("%s[%s] Ratownik basenu olimpijskiego wypuścił klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
+        printf("%s[%s] Ratownik basenu olimpijskiego wypuścił klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
 
         // Usuwanie PID klienta z tablicy
         // Blokada przez muteks

@@ -70,6 +70,11 @@ int main()
     {
         printf("%s[%s] Klient %d uruchomiony. Wiek: %d. Wiek opiekuna: %d. VIP: %d. Czepek: %d. Preferowane baseny: %d, %d\n%s", COLOR2, timestamp(), klient.PID, klient.wiek, klient.wiek_opiekuna, klient.VIP, klient.czepek, klient.wybor_basenu, klient.drugi_wybor_basenu, RESET);
     }
+
+    // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
+    key_t klucz_pamieci = ftok(".", 3213);
+    int ID_pamieci = shmget(klucz_pamieci, sizeof(bool), 0600 | IPC_CREAT);
+    bool* czas_przekroczony = (bool*)shmat(ID_pamieci, NULL, 0);
     
     // Deklaracja struktur do wysyłania i odbierania wiadomości od kasjera i ratownika
     struct komunikat wyslany, odebrany;
@@ -86,13 +91,6 @@ int main()
 
     // Odbieranie komunikatu od kasjera
     odbierz_komunikat(ID_kolejki_kasjer, &odebrany, wyslany.PID);
-
-    // Jeśli klient nie został przyjęty przez kasjera, kończy swoje działanie
-    if(odebrany.pozwolenie_kasjer == false)
-    {
-        printf("umieram bo kasjera nie ma\n");
-        raise(SIGINT);
-    }
 
     // Klient wchodzi na basen, czas z biletu zaczyna upływać
     czas_wyjscia = time(NULL) + BILET;
@@ -123,7 +121,7 @@ int main()
     // Klient odbiera wiadomość zwrotną od ratownika
     odbierz_komunikat(ID_kolejki_ratownik_przyjmuje, &odebrany, wyslany.PID);
     
-    if(odebrany.pozwolenie_ratownik == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
+    if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
     {
         pthread_join(czas, NULL);
     }
@@ -135,7 +133,7 @@ int main()
         // Klient odbiera wiadomość zwrotną od ratownika
         odbierz_komunikat(ID_kolejki_ratownik_przyjmuje, &odebrany, wyslany.PID);
 
-        if(odebrany.pozwolenie_ratownik == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
+        if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
         {
             pthread_join(czas, NULL);
         }
