@@ -77,24 +77,57 @@ int main()
     // Komunikat o uruchomieniu zarządcy
     printf("%s[%s] Zarządca uruchomiony\n%s", COLOR1, timestamp(), RESET);
 
-    // Ustalenie maksymalnej liczby klientów
-    printf("Podaj maksymalną liczbę klientów: ");
-    int maks_klientow;
-    if(scanf("%d", &maks_klientow)<1) // Użytkownik podaje maksymalną liczbę klientów
+    // Sprawdzenie limitu wywołanych procesów przez łącze komunikacyjne
+    FILE *fp = popen("bash -c 'ulimit -u'", "r");
+    if(fp == NULL) 
     {
-        handle_error("scanf maks_klientow");
+        handle_error("popen");
+    }
+
+    // Ustalenie maksymalnej liczby klientów
+    int maks_klientow = 0;
+    int maks_procesy = 0;
+    printf("Podaj maksymalną liczbę klientów: ");
+    if(scanf("%d", &maks_klientow) != 1) // Użytkownik podaje maksymalną liczbę klientów
+    {
+        printf("scanf maks_klientow - podano złą wartość\n");
+        exit(EXIT_FAILURE);
+    }
+    if(maks_klientow<0)
+    {
+        printf("maks_klientow - podano za małą wartość\n");
+        exit(EXIT_FAILURE);
+    }
+    if(fscanf(fp, "%d", &maks_procesy) != 1)
+    {
+        pclose(fp);
+        printf("scanf maks_procesy\n");
+        exit(EXIT_FAILURE);
+    }
+    pclose(fp);
+    // Sprawdzenie czy liczba wywołanych procesów nie będzie większa niż limit (+6 bo tyle procesów wywołuję poza klientami)
+    if(maks_klientow + 6 > maks_procesy)
+    {
+        printf("Przekroczono limit ilości procesów\n");
+        exit(EXIT_FAILURE);
     }
 
     // Obsługa czasu działania programu
     printf("Podaj czas pracy basenu (w sekundach): ");
     int czas_pracy;
-    if(scanf("%d", &czas_pracy)<1) // Użytkownik podaje czas pracy programu
+    if(scanf("%d", &czas_pracy) != 1) // Użytkownik podaje czas pracy programu
     {
-        handle_error("scanf czas_pracy");
+        printf("scanf czas_pracy - podano złą wartość\n");
+        exit(EXIT_FAILURE);
     }
     // Komunikat o otwarciu kompleksu basenów
-    printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
     czas_zamkniecia = time(NULL) + czas_pracy; // Ustalenie czasu zamknięcia
+    if(czas_zamkniecia<time(NULL) || czas_pracy < 1)
+    {
+        printf("czas_zamkniecia - podano za krótki czas pracy\n");
+        exit(EXIT_FAILURE);
+    }
+    printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
 
     // Utworzenie kolejek komunikatów dla ratowników
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
