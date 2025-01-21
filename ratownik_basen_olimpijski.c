@@ -44,7 +44,7 @@ void SIGINT_handler(int sig)
     // Usunięcie struktur
     if(semctl(ID_semafora, 0, IPC_RMID)==-1)
     {
-        handle_error("semctl ID_semafora");
+        handle_error("semctl ratownik_olimpijski");
     }
 
     // Komunikat o zakończeniu działania ratownika basenu olimpijskiego
@@ -137,6 +137,8 @@ void* przyjmowanie()
 
     while(1)
     {
+        print_klienci_w_basenie();
+
         if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0)==-1)
         {
             handle_error("msgrcv ratownik olimpijski przyjmuje");
@@ -144,8 +146,6 @@ void* przyjmowanie()
         
         if(odebrany.wiek>=18)
         {
-            printf("%s[%s] Ratownik olimpijski przyjął klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
-
             // Przyjęcie klienta na basen
             semafor_p(ID_semafora, 0);
 
@@ -165,11 +165,11 @@ void* przyjmowanie()
             {
                 handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
             }
+
+            printf("%s[%s] Ratownik olimpijski przyjął klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
         }
         else
         {
-            printf("%s[%s] Ratownik olimpijski nie przyjął klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
-
             // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
@@ -180,6 +180,8 @@ void* przyjmowanie()
             {
                 handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");  
             }
+
+            printf("%s[%s] Ratownik olimpijski nie przyjął klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
         }
     }
 }
@@ -197,8 +199,6 @@ void* wypuszczanie()
             handle_error("msgrcv ratownik olimpijski wypuszcza");
         }
         
-        printf("%s[%s] Ratownik basenu olimpijskiego wypuścił klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
-
         // Usuwanie PID klienta z tablicy
         // Blokada przez muteks
         pthread_mutex_lock(&klient_mutex);
@@ -235,5 +235,7 @@ void* wypuszczanie()
         {
             handle_error("msgsnd ID_kolejki_ratownik_wypuszcza");
         }
+
+        printf("%s[%s] Ratownik basenu olimpijskiego wypuścił klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
     }
 }

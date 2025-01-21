@@ -151,8 +151,6 @@ void* przyjmowanie()
 
         if(odebrany.wiek <= 5)
         {
-            printf("%s[%s] Ratownik brodzika przyjął klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
-
             semafor_p_2(ID_semafora, 0);
 
             pthread_mutex_lock(&klient_mutex);
@@ -167,11 +165,11 @@ void* przyjmowanie()
             {
                 handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
             }
+
+            printf("%s[%s] Ratownik brodzika przyjął klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
         }
         else
         {
-            printf("%s[%s] Ratownik brodzika nie przyjął klienta %d%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
-
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
             wyslany.pozwolenie = false;
@@ -180,6 +178,8 @@ void* przyjmowanie()
             {
                 handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
             }
+
+            printf("%s[%s] Ratownik brodzika nie przyjął klienta %d%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
         }
     }
 }
@@ -190,13 +190,12 @@ void* wypuszczanie()
 
     while(1)
     {
+        print_klienci_w_basenie();
 
         if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
         {
             handle_error("msgrcv ratownik brodzik wypuszcza");
         }
-
-        printf("%s[%s] Ratownik brodzika wypuścił klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
 
         pthread_mutex_lock(&klient_mutex);
 
@@ -227,5 +226,7 @@ void* wypuszczanie()
         {
             handle_error("msgsnd ID_kolejki_ratownik_wypuszcza");
         }
+
+        printf("%s[%s] Ratownik brodzika wypuścił klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
     }
 }

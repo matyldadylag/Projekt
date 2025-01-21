@@ -13,8 +13,10 @@ double suma_wieku;
 
 // Tablica przechowująca PID klientów aktualnie na basenie
 pid_t klienci_w_basenie[MAKS_REKREACYJNY];
-// Licznik klientów aktualnie na basenie
+// Licznik klientów aktualnie na basenie (liczy opiekuna i dziecko jako jeden)
 int licznik_klientow = 0;
+// Licznik klientów wiek
+int licznik_klientow_wiek = 0;
 // Muteks chroniący powyższe zasoby
 pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -151,49 +153,99 @@ void* przyjmowanie()
 
     while(1)
     {
+        print_klienci_w_basenie();
+
         if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_REKREACYJNY, 0) == -1)
         {
             handle_error("msgrcv ratownik rekreacyjny przyjmuje");
         }
         
-        // Wykorzystuję zmienną temp, bo jeszcze nie wiem czy klienta przyjmę - sprawdzam czy średnia będzie za wysoka
-        temp = (suma_wieku + odebrany.wiek)/(licznik_klientow+1);
-        
-        if(temp <= 40)
+        if(odebrany.wiek_opiekuna==0)
         {
-            printf("%s[%s] Ratownik basenu rekreacyjnego przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
-
-            // Przyjęcie klienta na basen
-            suma_wieku += odebrany.wiek;
-            semafor_p(ID_semafora, 0);
-           
-            // Dodanie PID klienta do tablicy
-            pthread_mutex_lock(&klient_mutex);
-            klienci_w_basenie[licznik_klientow++] = odebrany.PID;
-            pthread_mutex_unlock(&klient_mutex);
-
-            wyslany.mtype = odebrany.PID;
-            wyslany.PID = odebrany.PID;
-            wyslany.pozwolenie = true;
-
-            if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+            // Wykorzystuję zmienną temp, bo jeszcze nie wiem czy klienta przyjmę - sprawdzam czy średnia będzie za wysoka
+            temp = (suma_wieku + odebrany.wiek)/(licznik_klientow_wiek+1);
+        
+            if(temp <= 40)
             {
-                handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                // Przyjęcie klienta na basen
+                suma_wieku += odebrany.wiek;
+                semafor_p(ID_semafora, 0);
+            
+                // Dodanie PID klienta do tablicy
+                pthread_mutex_lock(&klient_mutex);
+                klienci_w_basenie[licznik_klientow++] = odebrany.PID;
+                pthread_mutex_unlock(&klient_mutex);
+                licznik_klientow_wiek++;
+
+                wyslany.mtype = odebrany.PID;
+                wyslany.PID = odebrany.PID;
+                wyslany.pozwolenie = true;
+
+                if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+                {
+                    handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                }
+
+                printf("%s[%s] Ratownik basenu rekreacyjnego przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
+            }
+            else
+            {
+                wyslany.mtype = odebrany.PID;
+                wyslany.PID = odebrany.PID;
+                wyslany.pozwolenie = false;
+
+                if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+                {
+                    handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                }
+
+                printf("%s[%s] Ratownik basenu rekreacyjnego nie przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
             }
         }
         else
         {
-            printf("%s[%s] Ratownik basenu rekreacyjnego nie przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
-
-            wyslany.mtype = odebrany.PID;
-            wyslany.PID = odebrany.PID;
-            wyslany.pozwolenie = false;
-
-            if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+            // Wykorzystuję zmienną temp, bo jeszcze nie wiem czy klienta przyjmę - sprawdzam czy średnia będzie za wysoka
+            temp = (suma_wieku + odebrany.wiek + odebrany.wiek_opiekuna)/(licznik_klientow_wiek+2);
+        
+            if(temp <= 40)
             {
-                handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                // Przyjęcie klienta na basen
+                suma_wieku = suma_wieku + odebrany.wiek + odebrany.wiek_opiekuna;
+                semafor_p_2(ID_semafora, 0);
+            
+                // Dodanie PID klienta do tablicy
+                pthread_mutex_lock(&klient_mutex);
+                klienci_w_basenie[licznik_klientow++] = odebrany.PID;
+                pthread_mutex_unlock(&klient_mutex);
+
+                licznik_klientow_wiek = licznik_klientow_wiek + 2;
+
+                wyslany.mtype = odebrany.PID;
+                wyslany.PID = odebrany.PID;
+                wyslany.pozwolenie = true;
+
+                if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+                {
+                    handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                }
+
+                printf("%s[%s] Ratownik basenu rekreacyjnego przyjął klienta %d z opiekunem%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
+            }
+            else
+            {
+                wyslany.mtype = odebrany.PID;
+                wyslany.PID = odebrany.PID;
+                wyslany.pozwolenie = false;
+
+                if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+                {
+                    handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                }
+
+                printf("%s[%s] Ratownik basenu rekreacyjnego nie przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
             }
         }
+        
     }
 }
 
@@ -210,31 +262,64 @@ void* wypuszczanie()
             handle_error("msgrcv ratownik rekreacyjny wpuszcza");
         }
 
-        printf("%s[%s] Ratownik basenu rekreacyjnego wypuścił klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
-        
-        pthread_mutex_lock(&klient_mutex);
+        if(odebrany.wiek_opiekuna==0)
+        {        
+            pthread_mutex_lock(&klient_mutex);
 
-        int indeks_klienta_do_usuniecia;
-        for (int i = 0; i < licznik_klientow; i++)
-        {
-            if (klienci_w_basenie[i] == odebrany.PID)
+            int indeks_klienta_do_usuniecia;
+            for (int i = 0; i < licznik_klientow; i++)
             {
-                indeks_klienta_do_usuniecia = i;
-                break;
+                if (klienci_w_basenie[i] == odebrany.PID)
+                {
+                    indeks_klienta_do_usuniecia = i;
+                    break;
+                }
             }
+
+            for (int i = indeks_klienta_do_usuniecia; i < licznik_klientow - 1; i++)
+            {
+                klienci_w_basenie[i] = klienci_w_basenie[i + 1];
+            }
+            licznik_klientow--;
+            licznik_klientow_wiek--;
+            
+            pthread_mutex_unlock(&klient_mutex);
+
+            semafor_v(ID_semafora, 0);
+
+            suma_wieku -= odebrany.wiek;
+
+            printf("%s[%s] Ratownik basenu rekreacyjnego wypuścił klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
         }
+        else
+        {        
+            pthread_mutex_lock(&klient_mutex);
 
-        for (int i = indeks_klienta_do_usuniecia; i < licznik_klientow - 1; i++)
-        {
-            klienci_w_basenie[i] = klienci_w_basenie[i + 1];
+            int indeks_klienta_do_usuniecia;
+            for (int i = 0; i < licznik_klientow; i++)
+            {
+                if (klienci_w_basenie[i] == odebrany.PID)
+                {
+                    indeks_klienta_do_usuniecia = i;
+                    break;
+                }
+            }
+
+            for (int i = indeks_klienta_do_usuniecia; i < licznik_klientow - 1; i++)
+            {
+                klienci_w_basenie[i] = klienci_w_basenie[i + 1];
+            }
+            licznik_klientow--;
+            licznik_klientow_wiek = licznik_klientow_wiek-2;
+            
+            pthread_mutex_unlock(&klient_mutex);
+
+            semafor_v(ID_semafora, 0);
+
+            suma_wieku = suma_wieku - odebrany.wiek - odebrany.wiek_opiekuna;
+
+            printf("%s[%s] Ratownik basenu rekreacyjnego wypuścił klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
         }
-        licznik_klientow--;
-        
-        pthread_mutex_unlock(&klient_mutex);
-
-        semafor_v(ID_semafora, 0);
-
-        suma_wieku -= odebrany.wiek;
 
         wyslany.mtype = odebrany.PID;
         wyslany.PID = odebrany.PID;
