@@ -14,7 +14,10 @@ void wyslij_komunikat(int kolejka_id, struct komunikat* kom)
 // Funkcja do odbierania komunikatów
 void odbierz_komunikat(int kolejka_id, struct komunikat* kom, long mtype)
 {
-    msgrcv(kolejka_id, kom, sizeof(*kom) - sizeof(long), mtype, 0);
+    if(msgrcv(kolejka_id, kom, sizeof(*kom) - sizeof(long), mtype, 0)==-1)
+    {
+        handle_error("msgrcv odbierz_komunikat");
+    }
 }
 
 // Funkcja do inicjalizacji komunikatu
@@ -34,7 +37,7 @@ void SIGINT_handler(int sig)
     exit(0);
 }
 
-// Wątek mierzący czas - gdy zostanie osiągnięty czas wyjścia klienta z basenu, wysyła komunikat do ratownika o chęci wyjścia
+// Wątek mierzy czas - gdy zostanie osiągnięty czas wyjścia klienta z basenu, wysyła komunikat do ratownika o chęci wyjścia
 void* czasomierz()
 {
     // Klient pilnuje ile czasu jest na basenie i kiedy musi wyjść
@@ -49,7 +52,10 @@ void* czasomierz()
 int main()
 {
     // Obsługa SIGINT
-    signal(SIGINT, SIGINT_handler);
+    if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
+    {
+        handle_error("signal SIGINT_handler");
+    }
 
     // Punkt początkowy do losowania na podstawie PID procesu
     srand(getpid());
@@ -76,15 +82,38 @@ int main()
 
     // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
     key_t klucz_pamieci = ftok(".", 3213);
+    if (klucz_pamieci == -1)
+    {
+        handle_error("ftok klucz_pamieci");
+    }
+
     int ID_pamieci = shmget(klucz_pamieci, sizeof(bool), 0600 | IPC_CREAT);
+    if (ID_pamieci == -1)
+    {
+        handle_error("shmget ID_pamieci");
+    }
+
     bool* czas_przekroczony = (bool*)shmat(ID_pamieci, NULL, 0);
-    
+    if (czas_przekroczony == (void*)-1)
+    {
+        handle_error("shmat czas_przekroczony");
+    }
+
     // Deklaracja struktur do wysyłania i odbierania wiadomości od kasjera i ratownika
     struct komunikat wyslany, odebrany;
 
     // Komunikacja z kasjerem
     key_t klucz_kolejki_kasjer = ftok(".", 6377);
-    int ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600); // Uzyskanie dostępu do kolejki kasjera
+    if (klucz_kolejki_kasjer == -1)
+    {
+        handle_error("ftok klucz_kolejki_kasjer");
+    }
+
+    int ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600);
+    if (ID_kolejki_kasjer == -1)
+    {
+        handle_error("msgget ID_kolejki_kasjer");
+    }
 
     // Inicjalizacja struktury komunikatu dla kasjera
     inicjalizuj_komunikat(&wyslany, klient.VIP ? KASJER_VIP : KASJER, klient.PID, klient.wiek, klient.wiek_opiekuna);
@@ -97,9 +126,13 @@ int main()
 
     // Klient wchodzi na basen, czas z biletu zaczyna upływać
     czas_wyjscia = time(NULL) + BILET;
+
     // Tworzy wątek pilnujący, kiedy kończy się bilet
     pthread_t czas;
-    pthread_create(&czas, NULL, czasomierz, NULL);
+    if (pthread_create(&czas, NULL, czasomierz, NULL) != 0)
+    {
+        handle_error("pthread_create czas");
+    }
 
     // Komunikat o założeniu pampersa
     if(klient.wiek <= 3)
@@ -115,7 +148,16 @@ int main()
 
     // Komunikacja z ratownikiem
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
-    int ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600); // Utworzenie kolejki dla ratownika
+    if (klucz_kolejki_ratownik_przyjmuje == -1)
+    {
+        handle_error("ftok klucz_kolejki_ratownik_przyjmuje");
+    }
+
+    int ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
+    if (ID_kolejki_ratownik_przyjmuje == -1)
+    {
+        handle_error("msgget ID_kolejki_ratownik_przyjmuje");
+    }
 
     // Wysyłanie komunikatu do ratownika (pierwszy wybór basenu)
     inicjalizuj_komunikat(&wyslany, klient.wybor_basenu, klient.PID, klient.wiek, klient.wiek_opiekuna);
@@ -123,10 +165,13 @@ int main()
 
     // Klient odbiera wiadomość zwrotną od ratownika
     odbierz_komunikat(ID_kolejki_ratownik_przyjmuje, &odebrany, wyslany.PID);
-    
+
     if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
     {
-        pthread_join(czas, NULL);
+        if (pthread_join(czas, NULL) != 0)
+        {
+            handle_error("pthread_join czas");
+        }
     }
     else // Jeśli nie dostał się na basen, próbuje dostać się do swojego drugiego wyboru
     {
@@ -138,7 +183,10 @@ int main()
 
         if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
         {
-            pthread_join(czas, NULL);
+            if (pthread_join(czas, NULL) != 0)
+            {
+                handle_error("pthread_join czas");
+            }
         }
         else
         {
@@ -148,7 +196,16 @@ int main()
 
     // Komunikacja z ratownikiem, aby wyjść z basenu
     key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
-    int ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600); // Utworzenie kolejki dla ratownika wypuszczającego
+    if (klucz_kolejki_ratownik_wypuszcza == -1)
+    {
+        handle_error("ftok klucz_kolejki_ratownik_wypuszcza");
+    }
+
+    int ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
+    if (ID_kolejki_ratownik_wypuszcza == -1)
+    {
+        handle_error("msgget ID_kolejki_ratownik_wypuszcza");
+    }
 
     // Klient wysyła wiadomość do ratownika
     wyslij_komunikat(ID_kolejki_ratownik_wypuszcza, &wyslany);

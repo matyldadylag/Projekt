@@ -33,6 +33,12 @@
 #define RATOWNIK_REKREACYJNY 12
 #define RATOWNIK_OLIMPIJSKI 13
 
+void handle_error(const char *msg)
+{
+    perror(msg);
+    exit(EXIT_FAILURE);
+}
+
 // Struktura przechowująca dane klienta
 struct dane_klienta
 {
@@ -64,7 +70,10 @@ static void semafor_v(int semafor_id, int numer_semafora)
     bufor_sem.sem_op = 1;
     bufor_sem.sem_flg = SEM_UNDO;
 
-    semop(semafor_id, &bufor_sem, 1);
+    if(semop(semafor_id, &bufor_sem, 1)==-1)
+    {
+        handle_error("semop V");
+    }
 }
 
 static void semafor_p(int semafor_id, int numer_semafora)
@@ -74,7 +83,10 @@ static void semafor_p(int semafor_id, int numer_semafora)
     bufor_sem.sem_op = -1;
     bufor_sem.sem_flg = 0;
     
-    semop(semafor_id, &bufor_sem, 1);
+    if(semop(semafor_id, &bufor_sem, 1)==-1)
+    {
+        handle_error("semop P");
+    }
 }
 
 // Funkcje operacji semaforowych dla klienta z dzieckiem - zwiększają/obniżają wartość semaforów o 2
@@ -85,17 +97,34 @@ static void semafor_v_2(int semafor_id, int numer_semafora)
     bufor_sem.sem_op = 2;
     bufor_sem.sem_flg = SEM_UNDO;
 
-    semop(semafor_id, &bufor_sem, 1);
+    if(semop(semafor_id, &bufor_sem, 1)==-1)
+    {
+        handle_error("semop V 2");
+    }
 }
 
 static void semafor_p_2(int semafor_id, int numer_semafora)
 {
+    int sem_value = semctl(semafor_id, numer_semafora, GETVAL);
+    if (sem_value == -1)
+    {
+        handle_error("semctl GETVAL failed");
+    }
+
+    if (sem_value < 2)
+    {
+        handle_error("semop P 2 - semafor ma wartość mniejszą od 2");
+    }
+
     struct sembuf bufor_sem;
     bufor_sem.sem_num = numer_semafora;
     bufor_sem.sem_op = -2;
     bufor_sem.sem_flg = 0;
-    
-    semop(semafor_id, &bufor_sem, 1);
+
+    if (semop(semafor_id, &bufor_sem, 1) == -1)
+    {
+        handle_error("semop P 2");
+    }
 }
 
 // Pomocnicza funkcja do wyświetlania timestampów w wiadomościach
@@ -114,9 +143,3 @@ const char *COLOR3 = "\033[38;2;255;237;0m";
 const char *COLOR4 = "\033[38;2;0;128;38m";
 const char *COLOR5 = "\033[38;2;0;76;255m";
 const char *COLOR6 = "\033[38;2;115;41;130m";
-
-void handle_error(const char *msg)
-{
-    perror(msg);
-    exit(EXIT_FAILURE);
-}

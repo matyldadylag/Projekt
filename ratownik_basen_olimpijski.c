@@ -33,7 +33,10 @@ void SIGINT_handler(int sig)
     pthread_mutex_unlock(&klient_mutex); // Odblokowanie tablicy
 
     // Usunięcie struktur
-    semctl(ID_semafora, 0, IPC_RMID);
+    if(semctl(ID_semafora, 0, IPC_RMID)==-1)
+    {
+        handle_error("semctl ID_semafora");
+    }
 
     // Komunikat o zakończeniu działania ratownika basenu olimpijskiego
     printf("%s[%s] Ratownik basenu olimpijskiego kończy działanie%s\n", COLOR6, timestamp(), RESET);
@@ -44,23 +47,53 @@ void SIGINT_handler(int sig)
 int main()
 {
     // Obsługa SIGINT
-    signal(SIGINT, SIGINT_handler);
+    if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
+    {
+        handle_error("signal SIGINT_handler");
+    }
     
     // Komunikat o uruchomieniu ratownika brodzika
     printf("%s[%s] Ratownik basenu olimpijskiego uruchomiony%s\n", COLOR6, timestamp(), RESET);
 
     // Utworzenie kolejki do przyjmowania klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
+    if(klucz_kolejki_ratownik_przyjmuje==-1)
+    {
+        handle_error("ftok klucz_kolejki_ratownik_przyjmuje");
+    }
     ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
+    if(ID_kolejki_ratownik_przyjmuje==-1)
+    {
+        handle_error("msgget ID_kolejki_ratownik_przyjmuje");
+    }
 
     // Utworzenie kolejki do wypuszczania klientów
     key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
+    if(klucz_kolejki_ratownik_wypuszcza==-1)
+    {
+        handle_error("ftok klucz_kolejki_ratownik_wypuszcza");
+    }
     ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
+    if(ID_kolejki_ratownik_wypuszcza==-1)
+    {
+        handle_error("msgget ID_kolejki_ratownik_wypuszcza");
+    }
 
     // Utworzenie semafora
     key_t klucz_semafora = ftok(".", 9447);
+    if(klucz_semafora==-1)
+    {
+        handle_error("ftok klucz_semafora");
+    }
     ID_semafora = semget(klucz_semafora, 1, 0600|IPC_CREAT);
-    semctl(ID_semafora, 0, SETVAL, MAKS_OLIMPIJSKI);
+    if(ID_semafora==-1)
+    {
+        handle_error("semget ID_semafora");
+    }
+    if(semctl(ID_semafora, 0, SETVAL, MAKS_OLIMPIJSKI)==-1)
+    {
+        handle_error("semctl ID_semafora");
+    }
 
     // Utworzenie wątków do przyjmowania i wypuszczania klientów
     pthread_create(&przyjmuje, NULL, przyjmowanie, NULL);
@@ -79,7 +112,10 @@ void* przyjmowanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0);
+        if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0)==-1)
+        {
+            handle_error("msgrcv ratownik olimpijski przyjmuje");
+        }
         
         if(odebrany.wiek>=18)
         {
@@ -100,7 +136,10 @@ void* przyjmowanie()
             wyslany.pozwolenie = true;
 
             // Wysłanie wiadomości
-            msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
+            if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+            {
+                handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+            }
         }
         else
         {
@@ -112,7 +151,10 @@ void* przyjmowanie()
             wyslany.pozwolenie = false;
 
             // Wysłanie wiadomości
-            msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
+            if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+            {
+                handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");  
+            }
         }
     }
 }
@@ -123,7 +165,10 @@ void* wypuszczanie()
 
     while(1)
     {
-        msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0);
+        if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0)==-1)
+        {
+            handle_error("msgrcv ratownik olimpijski wypuszcza");
+        }
         
         printf("%s[%s] Ratownik basenu olimpijskiego wypuścił klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
 
@@ -159,6 +204,9 @@ void* wypuszczanie()
         wyslany.PID = odebrany.PID;
 
         // Wysłanie wiadomości
-        msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0);
+        if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+        {
+            handle_error("msgsnd ID_kolejki_ratownik_wypuszcza");
+        }
     }
 }
