@@ -32,6 +32,15 @@ void SIGINT_handler(int sig)
     }
     pthread_mutex_unlock(&klient_mutex); // Odblokowanie tablicy
 
+    // Czekanie na zakończenie wszystkich procesów
+    pthread_mutex_lock(&klient_mutex);
+    for (int i = 0; i < licznik_klientow; i++)
+    {
+        int status;
+        waitpid(klienci_w_basenie[i], &status, 0);
+    }
+    pthread_mutex_unlock(&klient_mutex);
+
     // Usunięcie struktur
     if(semctl(ID_semafora, 0, IPC_RMID) == -1)
     {
@@ -42,6 +51,22 @@ void SIGINT_handler(int sig)
     printf("%s[%s] Ratownik brodzika kończy działanie%s\n", COLOR4, timestamp(), RESET);
 
     exit(0);
+}
+
+void print_klienci_w_basenie()
+{
+    pthread_mutex_lock(&klient_mutex);
+    printf("%s[%s] Brodzik: [", COLOR4, timestamp());
+    for (int i = 0; i < licznik_klientow; i++)
+    {
+        printf("%d", klienci_w_basenie[i]);
+        if (i < licznik_klientow - 1)
+        {
+            printf(", ");
+        }
+    }
+    printf("]%s\n", RESET);
+    pthread_mutex_unlock(&klient_mutex);
 }
 
 int main()
@@ -117,6 +142,8 @@ void* przyjmowanie()
 
     while(1)
     {
+        print_klienci_w_basenie();
+
         if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
         {
             handle_error("msgrcv ratownik brodzik przyjmuje");
@@ -163,6 +190,7 @@ void* wypuszczanie()
 
     while(1)
     {
+
         if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
         {
             handle_error("msgrcv ratownik brodzik wypuszcza");

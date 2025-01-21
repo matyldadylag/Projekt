@@ -17,12 +17,12 @@
 #include <errno.h>
 
 // Długość biletu czasowego - maksymalny czas, jaki proces może spędzić na basenie (w sekundach)
-#define BILET 5
+#define BILET 10
 
 // Semafory basenów - maksymalna liczba osób w danym basenie
-#define MAKS_OLIMPIJSKI 2
-#define MAKS_REKREACYJNY 2
-#define MAKS_BRODZIK 2
+#define MAKS_OLIMPIJSKI 10
+#define MAKS_REKREACYJNY 10
+#define MAKS_BRODZIK 10
 
 // Kolejki komunikatów
 #define MAKS_DLUG_KOM 255 // Maksymalna długość przekazywanych komunikatów
@@ -140,6 +140,6 @@ const char *RESET = "\033[0m";
 const char *COLOR1 = "\033[38;2;228;3;3m";
 const char *COLOR2 = "\033[38;2;255;140;0m";
 const char *COLOR3 = "\033[38;2;255;237;0m";
-const char *COLOR4 = "\033[38;2;0;128;38m";
-const char *COLOR5 = "\033[38;2;0;76;255m";
-const char *COLOR6 = "\033[38;2;115;41;130m";
+const char *COLOR4 = "\033[38;2;0;102;204m";
+const char *COLOR5 = "\033[38;2;51;153;255m";
+const char *COLOR6 = "\033[38;2;0;51;153m";
