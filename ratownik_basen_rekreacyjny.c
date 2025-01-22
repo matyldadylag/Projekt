@@ -7,7 +7,7 @@ void* wypuszczanie();
 // Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
 int ID_kolejki_ratownik_przyjmuje;
 int ID_kolejki_ratownik_wypuszcza;
-int ID_semafora;
+int ID_semafora_rekreacyjny;
 pthread_t przyjmuje, wypuszcza;
 double suma_wieku;
 
@@ -28,26 +28,9 @@ void SIGINT_handler(int sig)
     pthread_kill(wypuszcza, SIGINT);
 
     // Wysłanie SIGINT do klientów z tablicy ratownika
-    pthread_mutex_lock(&klient_mutex); // Blokowanie tablicy
     for (int i = 0; i < licznik_klientow; i++)
     {
         kill(klienci_w_basenie[i], SIGINT);
-    }
-    pthread_mutex_unlock(&klient_mutex); // Odblokowanie tablicy
-
-    // Czekanie na zakończenie wszystkich procesów
-    pthread_mutex_lock(&klient_mutex);
-    for (int i = 0; i < licznik_klientow; i++)
-    {
-        int status;
-        waitpid(klienci_w_basenie[i], &status, 0);
-    }
-    pthread_mutex_unlock(&klient_mutex);
-
-    // Usunięcie struktury
-    if(semctl(ID_semafora, 0, IPC_RMID)==-1)
-    {
-        handle_error("semctl ID_semafora");
     }
 
     // Komunikat o zakończeniu działania ratownika basenu rekreacyjnego
@@ -58,7 +41,6 @@ void SIGINT_handler(int sig)
 
 void print_klienci_w_basenie()
 {
-    pthread_mutex_lock(&klient_mutex);
     printf("%s[%s] Basen rekreacyjny: [", COLOR5, timestamp());
     for (int i = 0; i < licznik_klientow; i++)
     {
@@ -69,7 +51,6 @@ void print_klienci_w_basenie()
         }
     }
     printf("]%s\n", RESET);
-    pthread_mutex_unlock(&klient_mutex);
 }
 
 int main()
@@ -107,18 +88,18 @@ int main()
         handle_error("msgget ID_kolejki_ratownik_wypuszcza");
     }
 
-    // Utworzenie semafora
-    key_t klucz_semafora = ftok(".", 2003);
-    if(klucz_semafora == -1)
+ // Utworzenie semafora
+    key_t klucz_semafora_rekreacyjny = ftok(".", 2003);
+    if(klucz_semafora_rekreacyjny == -1)
     {
         handle_error("ftok klucz_semafora");
     }
-    ID_semafora = semget(klucz_semafora, 1, 0600 | IPC_CREAT);
-    if(ID_semafora == -1)
+    ID_semafora_rekreacyjny = semget(klucz_semafora_rekreacyjny, 1, 0600 | IPC_CREAT);
+    if(ID_semafora_rekreacyjny == -1)
     {
         handle_error("semget ID_semafora");
     }
-    if(semctl(ID_semafora, 0, SETVAL, MAKS_REKREACYJNY) == -1)
+    if(semctl(ID_semafora_rekreacyjny, 0, SETVAL, MAKS_REKREACYJNY) == -1)
     {
         handle_error("semctl SETVAL");
     }
@@ -169,7 +150,6 @@ void* przyjmowanie()
             {
                 // Przyjęcie klienta na basen
                 suma_wieku += odebrany.wiek;
-                semafor_p(ID_semafora, 0);
             
                 // Dodanie PID klienta do tablicy
                 pthread_mutex_lock(&klient_mutex);
@@ -180,10 +160,11 @@ void* przyjmowanie()
                 wyslany.mtype = odebrany.PID;
                 wyslany.PID = odebrany.PID;
                 wyslany.pozwolenie = true;
+                wyslany.id_semafora = ID_semafora_rekreacyjny;
 
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {
-                    handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                    handle_error("msgsnd rekreacyjny ratownik przyjmuje");
                 }
 
                 printf("%s[%s] Ratownik basenu rekreacyjnego przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
@@ -196,7 +177,7 @@ void* przyjmowanie()
 
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {
-                    handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                    handle_error("msgsnd ratownik rekreacyjny przyjmuje");
                 }
 
                 printf("%s[%s] Ratownik basenu rekreacyjnego nie przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
@@ -211,7 +192,6 @@ void* przyjmowanie()
             {
                 // Przyjęcie klienta na basen
                 suma_wieku = suma_wieku + odebrany.wiek + odebrany.wiek_opiekuna;
-                semafor_p_2(ID_semafora, 0);
             
                 // Dodanie PID klienta do tablicy
                 pthread_mutex_lock(&klient_mutex);
@@ -223,10 +203,11 @@ void* przyjmowanie()
                 wyslany.mtype = odebrany.PID;
                 wyslany.PID = odebrany.PID;
                 wyslany.pozwolenie = true;
+                wyslany.id_semafora = ID_semafora_rekreacyjny;
 
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {
-                    handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                    handle_error("msgsnd ratownik rekreacyjny przyjmuje");
                 }
 
                 printf("%s[%s] Ratownik basenu rekreacyjnego przyjął klienta %d z opiekunem%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
@@ -239,7 +220,7 @@ void* przyjmowanie()
 
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {
-                    handle_error("msgsnd ID_kolejki_ratownik_przyjmuje");
+                    handle_error("msgsnd rekreacyjny ratownik przyjmuje");
                 }
 
                 printf("%s[%s] Ratownik basenu rekreacyjnego nie przyjął klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
@@ -285,8 +266,6 @@ void* wypuszczanie()
             
             pthread_mutex_unlock(&klient_mutex);
 
-            semafor_v(ID_semafora, 0);
-
             suma_wieku -= odebrany.wiek;
 
             printf("%s[%s] Ratownik basenu rekreacyjnego wypuścił klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
@@ -314,8 +293,6 @@ void* wypuszczanie()
             
             pthread_mutex_unlock(&klient_mutex);
 
-            semafor_v(ID_semafora, 0);
-
             suma_wieku = suma_wieku - odebrany.wiek - odebrany.wiek_opiekuna;
 
             printf("%s[%s] Ratownik basenu rekreacyjnego wypuścił klienta %d%s\n", COLOR5, timestamp(), odebrany.PID, RESET);
@@ -323,6 +300,7 @@ void* wypuszczanie()
 
         wyslany.mtype = odebrany.PID;
         wyslany.PID = odebrany.PID;
+        wyslany.id_semafora = ID_semafora_rekreacyjny;
 
         if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
         {

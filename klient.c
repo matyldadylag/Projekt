@@ -60,6 +60,56 @@ int main()
     // Punkt początkowy do losowania na podstawie PID procesu
     srand(getpid());
 
+            // Utworzenie semafora
+    key_t klucz_semafora_brodzik = ftok(".", 3293);
+    if(klucz_semafora_brodzik == -1)
+    {
+        handle_error("ftok klucz_semafora");
+    }
+    int ID_semafora_brodzik = semget(klucz_semafora_brodzik, 1, 0600 | IPC_CREAT);
+    if(ID_semafora_brodzik == -1)
+    {
+        handle_error("semget ID_semafora");
+    }
+    if(semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK) == -1)
+    {
+        handle_error("semctl SETVAL");
+    }
+  
+
+ // Utworzenie semafora
+    key_t klucz_semafora_rekreacyjny = ftok(".", 2003);
+    if(klucz_semafora_rekreacyjny == -1)
+    {
+        handle_error("ftok klucz_semafora");
+    }
+    int ID_semafora_rekreacyjny = semget(klucz_semafora_rekreacyjny, 1, 0600 | IPC_CREAT);
+    if(ID_semafora_rekreacyjny == -1)
+    {
+        handle_error("semget ID_semafora");
+    }
+    if(semctl(ID_semafora_rekreacyjny, 0, SETVAL, MAKS_REKREACYJNY) == -1)
+    {
+        handle_error("semctl SETVAL");
+    }
+
+    // Utworzenie semafora
+    key_t klucz_semafora_olimpijski = ftok(".", 9447);
+    if(klucz_semafora_olimpijski==-1)
+    {
+        handle_error("ftok klucz_semafora");
+    }
+    int ID_semafora_olimpijski = semget(klucz_semafora_olimpijski, 1, 0600|IPC_CREAT);
+    if(ID_semafora_olimpijski==-1)
+    {
+        handle_error("semget ID_semafora");
+    }
+    if(semctl(ID_semafora_olimpijski, 0, SETVAL, MAKS_OLIMPIJSKI)==-1)
+    {
+        handle_error("semctl ID_semafora");
+    }
+
+
     // Zainicjowanie danych klienta
     struct dane_klienta klient;
     klient.PID = getpid();
@@ -168,6 +218,8 @@ int main()
 
     if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
     {
+        semafor_p(odebrany.id_semafora, 0);
+
         if (pthread_join(czas, NULL) != 0)
         {
             handle_error("pthread_join czas");
@@ -183,6 +235,8 @@ int main()
 
         if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
         {
+            semafor_p(odebrany.id_semafora, 0);
+
             if (pthread_join(czas, NULL) != 0)
             {
                 handle_error("pthread_join czas");
@@ -212,6 +266,9 @@ int main()
 
     // Klient odbiera wiadomość zwrotną od ratownika
     odbierz_komunikat(ID_kolejki_ratownik_wypuszcza, &odebrany, wyslany.PID);
+
+    printf("Klient %d opuszcza semafor %d\n", getpid(), odebrany.id_semafora);
+    semafor_v(odebrany.id_semafora, 0);
 
     // Gdy klient chce wyjść z basenu, wywołuje SIGINT
     raise(SIGINT);

@@ -2,7 +2,7 @@
 
 // Definicje globalne
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski; // Identyfikatory struktur
-int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_pamieci_czas_przekroczony, ID_pamieci_okresowe_zamkniecie;
+int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_pamieci_czas_przekroczony, ID_pamieci_okresowe_zamkniecie, ID_semafora_brodzik, ID_semafora_rekreacyjny, ID_semafora_olimpijski;
 time_t czas_zamkniecia; // Zmienne dotyczące czasu korzystane przez funkcję main i wątek
 bool* czas_przekroczony;
 bool* okresowe_zamkniecie; // Flagi w pamięci dzielonej, korzystane przez inne procesy
@@ -20,7 +20,7 @@ void SIGINT_handler(int sig)
     printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", COLOR1, timestamp(), RESET);    
     while (wait(NULL) > 0);
 
-    // Usuwa segment pamięci dzielonej dla czasu_przekroczony
+    // Usuwa segment pamięci dzielonej dla czas_przekroczony
     if(shmctl(ID_pamieci_czas_przekroczony, IPC_RMID, 0)==-1)
     {
         handle_error("shmctl ID_pamieci_czas_przekroczony");
@@ -29,6 +29,7 @@ void SIGINT_handler(int sig)
     {
         handle_error("shmdt czas_przekroczony");
     }
+
     // Usuwa segment pamięci dzielonej dla okresowe_zamkniecie
     if(shmctl(ID_pamieci_okresowe_zamkniecie, IPC_RMID, 0)==-1)
     {
@@ -49,12 +50,37 @@ void SIGINT_handler(int sig)
         handle_error("msgctl ID_kolejki_ratownik_wypuszcza");
     }
 
+    // Usunięcie semaforów ratowników
+    if(semctl(ID_semafora_brodzik, 0, IPC_RMID)==-1)
+    {
+        handle_error("semctl ID_semafora");
+    }
+    if(semctl(ID_semafora_rekreacyjny, 0, IPC_RMID)==-1)
+    {
+        handle_error("semctl ID_semafora");
+    }
+    if(semctl(ID_semafora_olimpijski, 0, IPC_RMID)==-1)
+    {
+        handle_error("semctl ID_semafora");
+    }
+
+    // Zarządca czeka, aż nadejdzie czas zamknięcia (jeśli czas został już przekroczony stanie się to od razu)
+    /*if(pthread_join(czyszczenie, NULL) == -1)
+    {
+        handle_error("pthread_join czyszczenie");
+    }*/
+
     // Komunikaty o zakończeniu pracy
     printf("%s[%s] Kompleks basenów jest zamknięty%s\n", COLOR1, timestamp(), RESET);
     printf("%s[%s] Zarządca kończy działanie%s\n", COLOR1, timestamp(), RESET);
 
     exit(0);
 }
+
+/*void* czyszczenie*()
+{
+    while (wait(NULL) > 0);
+}*/
 
 // Wątek mierzący czas - obsługuje czas zamknięcia oraz okresowe zamknięcie
 void* czasomierz()
@@ -217,7 +243,7 @@ int main()
     {
         handle_error("pthread_create czas");
     }
-    
+
     // Utworzenie kolejek komunikatów dla ratowników, do przyjmowania i wypuszczania klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
     if(klucz_kolejki_ratownik_przyjmuje==-1)
@@ -239,6 +265,55 @@ int main()
     if(ID_kolejki_ratownik_wypuszcza==-1)
     {
         handle_error("msgget ID_kolejki_ratownik_wypuszcza");
+    }
+
+        // Utworzenie semafora
+    key_t klucz_semafora_brodzik = ftok(".", 3293);
+    if(klucz_semafora_brodzik == -1)
+    {
+        handle_error("ftok klucz_semafora");
+    }
+    ID_semafora_brodzik = semget(klucz_semafora_brodzik, 1, 0600 | IPC_CREAT);
+    if(ID_semafora_brodzik == -1)
+    {
+        handle_error("semget ID_semafora");
+    }
+    if(semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK) == -1)
+    {
+        handle_error("semctl SETVAL");
+    }
+  
+
+ // Utworzenie semafora
+    key_t klucz_semafora_rekreacyjny = ftok(".", 2003);
+    if(klucz_semafora_rekreacyjny == -1)
+    {
+        handle_error("ftok klucz_semafora");
+    }
+    ID_semafora_rekreacyjny = semget(klucz_semafora_rekreacyjny, 1, 0600 | IPC_CREAT);
+    if(ID_semafora_rekreacyjny == -1)
+    {
+        handle_error("semget ID_semafora");
+    }
+    if(semctl(ID_semafora_rekreacyjny, 0, SETVAL, MAKS_REKREACYJNY) == -1)
+    {
+        handle_error("semctl SETVAL");
+    }
+
+    // Utworzenie semafora
+    key_t klucz_semafora_olimpijski = ftok(".", 9447);
+    if(klucz_semafora_olimpijski==-1)
+    {
+        handle_error("ftok klucz_semafora");
+    }
+    ID_semafora_olimpijski = semget(klucz_semafora_olimpijski, 1, 0600|IPC_CREAT);
+    if(ID_semafora_olimpijski==-1)
+    {
+        handle_error("semget ID_semafora");
+    }
+    if(semctl(ID_semafora_olimpijski, 0, SETVAL, MAKS_OLIMPIJSKI)==-1)
+    {
+        handle_error("semctl ID_semafora");
     }
 
     // Uruchomienie kasjera

@@ -22,9 +22,9 @@
 #define CZAS_PRZERWY_PROCENT 0.15
 
 // Semafory basenów - maksymalna liczba osób w danym basenie
-#define MAKS_OLIMPIJSKI 10
-#define MAKS_REKREACYJNY 10
-#define MAKS_BRODZIK 10
+#define MAKS_OLIMPIJSKI 2
+#define MAKS_REKREACYJNY 2
+#define MAKS_BRODZIK 2
 
 // Kolejki komunikatów
 #define MAKS_DLUG_KOM 255 // Maksymalna długość przekazywanych komunikatów
@@ -61,7 +61,7 @@ struct komunikat
     int wiek;
     int wiek_opiekuna;
     bool pozwolenie;
-    char mtext[MAKS_DLUG_KOM];
+    int id_semafora;
 };
 
 // Funkcje operacji semaforowych dla zwykłego klienta
@@ -70,10 +70,11 @@ static void semafor_v(int semafor_id, int numer_semafora)
     struct sembuf bufor_sem;
     bufor_sem.sem_num = numer_semafora;
     bufor_sem.sem_op = 1;
-    bufor_sem.sem_flg = SEM_UNDO;
+    bufor_sem.sem_flg = 0;
 
     if(semop(semafor_id, &bufor_sem, 1)==-1)
     {
+        fprintf(stderr, "Error: semop V failed. Reason: %s\n", strerror(errno));
         handle_error("semop V");
     }
 }
@@ -87,6 +88,7 @@ static void semafor_p(int semafor_id, int numer_semafora)
     
     if(semop(semafor_id, &bufor_sem, 1)==-1)
     {
+        fprintf(stderr, "Error: semop P failed. Reason: %s\n", strerror(errno));
         handle_error("semop P");
     }
 }
@@ -97,7 +99,7 @@ static void semafor_v_2(int semafor_id, int numer_semafora)
     struct sembuf bufor_sem;
     bufor_sem.sem_num = numer_semafora;
     bufor_sem.sem_op = 2;
-    bufor_sem.sem_flg = SEM_UNDO;
+    bufor_sem.sem_flg = 0;
 
     if(semop(semafor_id, &bufor_sem, 1)==-1)
     {
@@ -107,17 +109,6 @@ static void semafor_v_2(int semafor_id, int numer_semafora)
 
 static void semafor_p_2(int semafor_id, int numer_semafora)
 {
-    int sem_value = semctl(semafor_id, numer_semafora, GETVAL);
-    if (sem_value == -1)
-    {
-        handle_error("semctl GETVAL failed");
-    }
-
-    if (sem_value < 2)
-    {
-        handle_error("semop P 2 - semafor ma wartość mniejszą od 2");
-    }
-
     struct sembuf bufor_sem;
     bufor_sem.sem_num = numer_semafora;
     bufor_sem.sem_op = -2;
