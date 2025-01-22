@@ -62,8 +62,15 @@ void* czasomierz()
     // Oblicza czas okresowego zamknięcia (połowa czasu otwarcia)
     time_t czas_otwarcia = time(NULL);
     time_t czas_polowy = czas_otwarcia + (czas_zamkniecia - czas_otwarcia) / 2;
-    int czas_przerwy = 10; // Czas przerwy w sekundach
-
+    
+    // Czas przerwy to CZAS_PRZERWY_PROCENT całkowitego czasu otwarcia basenu
+    int czas_przerwy = (int)((czas_zamkniecia - czas_otwarcia) * CZAS_PRZERWY_PROCENT);
+    // Jeśli czas przerwy jest krótszy niż sekunda, ustawia go na 1
+    if (czas_przerwy < 1)
+    {
+        czas_przerwy = 1;
+    }
+    
     while (time(NULL) < czas_zamkniecia)
     {
         // Sprawdzenie, czy osiągnięto czas połowy otwarcia

@@ -18,6 +18,8 @@
 
 // Długość biletu czasowego - maksymalny czas, jaki proces może spędzić na basenie (w sekundach)
 #define BILET 10
+// Czas przerwy jest wyliczany procentowo na podstawie tego, jak długo basen jest otwarty
+#define CZAS_PRZERWY_PROCENT 0.15
 
 // Semafory basenów - maksymalna liczba osób w danym basenie
 #define MAKS_OLIMPIJSKI 10
