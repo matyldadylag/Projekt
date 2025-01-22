@@ -20,6 +20,7 @@ void SIGINT_handler(int sig)
 
 int main()
 {
+    // Obsługa sygnału SIGINT
     if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
     {
         handle_error("signal SIGINT_handler");

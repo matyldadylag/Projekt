@@ -2,9 +2,10 @@
 
 // Definicje globalne
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski; // Identyfikatory struktur
-int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_pamieci;
+int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_pamieci_czas_przekroczony, ID_pamieci_okresowe_zamkniecie;
 time_t czas_zamkniecia; // Zmienne dotyczące czasu korzystane przez funkcję main i wątek
 bool* czas_przekroczony;
+bool* okresowe_zamkniecie; // Flagi w pamięci dzielonej, korzystane przez inne procesy
 
 // Obsługa sygnału SIGINT
 void SIGINT_handler(int sig)
@@ -19,6 +20,25 @@ void SIGINT_handler(int sig)
     printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", COLOR1, timestamp(), RESET);    
     while (wait(NULL) > 0);
 
+    // Usuwa segment pamięci dzielonej dla czasu_przekroczony
+    if(shmctl(ID_pamieci_czas_przekroczony, IPC_RMID, 0)==-1)
+    {
+        handle_error("shmctl ID_pamieci_czas_przekroczony");
+    }
+    if(shmdt(czas_przekroczony)==-1)
+    {
+        handle_error("shmdt czas_przekroczony");
+    }
+    // Usuwa segment pamięci dzielonej dla okresowe_zamkniecie
+    if(shmctl(ID_pamieci_okresowe_zamkniecie, IPC_RMID, 0)==-1)
+    {
+        handle_error("shmctl ID_pamieci_okresowe_zamkniecie");
+    }
+    if(shmdt(okresowe_zamkniecie)==-1)
+    {
+        handle_error("shmdt okresowe_zamkniecie");
+    }
+
     // Usuwa kolejki komunikatów ratowników
     if(msgctl(ID_kolejki_ratownik_przyjmuje, IPC_RMID, 0)==-1)
     {
@@ -29,16 +49,6 @@ void SIGINT_handler(int sig)
         handle_error("msgctl ID_kolejki_ratownik_wypuszcza");
     }
 
-    // Usuwa segment pamięci dzielonej
-    if(shmctl(ID_pamieci, IPC_RMID, 0)==-1)
-    {
-        handle_error("shmctl ID_pamieci");
-    }
-    if(shmdt(czas_przekroczony)==-1)
-    {
-        handle_error("shmdt czas_przekroczony");
-    }
-
     // Komunikaty o zakończeniu pracy
     printf("%s[%s] Kompleks basenów jest zamknięty%s\n", COLOR1, timestamp(), RESET);
     printf("%s[%s] Zarządca kończy działanie%s\n", COLOR1, timestamp(), RESET);
@@ -46,19 +56,41 @@ void SIGINT_handler(int sig)
     exit(0);
 }
 
-// Wątek mierzący czas - gdy zostanie osiągnięty czas zamknięcia, przerywa generowanie klientów
+// Wątek mierzący czas - obsługuje czas zamknięcia oraz okresowe zamknięcie
 void* czasomierz()
 {
-    // Sprawdza, czy został osiągnięty czas zamknięcia
+    // Oblicza czas okresowego zamknięcia (połowa czasu otwarcia)
+    time_t czas_otwarcia = time(NULL);
+    time_t czas_polowy = czas_otwarcia + (czas_zamkniecia - czas_otwarcia) / 2;
+    int czas_przerwy = 10; // Czas przerwy w sekundach
+
     while (time(NULL) < czas_zamkniecia)
     {
+        // Sprawdzenie, czy osiągnięto czas połowy otwarcia
+        if (time(NULL) >= czas_polowy && !*okresowe_zamkniecie)
+        {
+            // Ustawienie flagi
+            *okresowe_zamkniecie = true;
+
+            // Wyświetlenie komunikatu o okresowym zamknięciu
+            printf("%s[%s] Rozpoczęcie okresowego zamknięcia%s\n", COLOR1, timestamp(), RESET);
+
+            // Wątek śpi na czas trwania przerwy
+            sleep(czas_przerwy);
+
+            // Zakończenie okresowego zamknięcia
+            *okresowe_zamkniecie = false;
+            printf("%s[%s] Zakończenie okresowego zamknięcia%s\n", COLOR1, timestamp(), RESET);
+
+            // Zaktualizowanie czasu połowy, aby uniknąć kolejnej przerwy
+            czas_polowy = czas_zamkniecia; // Teraz jest poza zakresem działania pętli
+        }
+
         sleep(1);
     }
 
-    // Ustawia flagę na true
+    // Osiągnięcie czasu zamknięcia
     *czas_przekroczony = true;
-
-    // Wyświetla komunikat o osiągnięciu czasu zamknięcia
     printf("%s[%s] Został osiągnięty czas zamknięcia%s\n", COLOR1, timestamp(), RESET);
 
     return NULL;
@@ -125,7 +157,7 @@ int main()
     }
     // Komunikat o otwarciu kompleksu basenów
     czas_zamkniecia = time(NULL) + czas_pracy; // Ustalenie czasu zamknięcia
-    if(czas_zamkniecia<time(NULL) || czas_pracy < 1)
+    if(czas_zamkniecia<time(NULL) || czas_pracy < 0)
     {
         printf("czas_zamkniecia - podano za krótki czas pracy\n");
         exit(EXIT_FAILURE);
@@ -135,23 +167,42 @@ int main()
     printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
 
     // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
-    key_t klucz_pamieci = ftok(".", 3213);
-    if(klucz_pamieci==-1)
+    key_t klucz_pamieci_czas_przekroczony = ftok(".", 3213);
+    if(klucz_pamieci_czas_przekroczony==-1)
     {
-        handle_error("ftok klucz_pamieci");
+        handle_error("ftok klucz_pamieci_czas_przekroczony");
     }
-    ID_pamieci = shmget(klucz_pamieci, sizeof(bool), 0600 | IPC_CREAT);
-    if(ID_pamieci==-1)
+    ID_pamieci_czas_przekroczony = shmget(klucz_pamieci_czas_przekroczony, sizeof(bool), 0600 | IPC_CREAT);
+    if(ID_pamieci_czas_przekroczony==-1)
     {
-        handle_error("shmget ID_pamieci");
+        handle_error("shmget ID_pamieci_czas_przekroczony");
     }
-    czas_przekroczony = (bool*)shmat(ID_pamieci, NULL, 0);
+    czas_przekroczony = (bool*)shmat(ID_pamieci_czas_przekroczony, NULL, 0);
     if (czas_przekroczony == (void*)-1)
     {
         handle_error("shmat czas_przekroczony");
     }
     // Inicjalizacja zmiennej jako "false" - czas nie został przekroczony
     *czas_przekroczony = false;
+
+    // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
+    key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
+    if(klucz_pamieci_okresowe_zamkniecie==-1)
+    {
+        handle_error("ftok klucz_pamieci_okresowe_zamkniecie");
+    }
+    ID_pamieci_okresowe_zamkniecie = shmget(klucz_pamieci_okresowe_zamkniecie, sizeof(bool), 0600 | IPC_CREAT);
+    if(ID_pamieci_okresowe_zamkniecie==-1)
+    {
+        handle_error("shmget ID_pamieci_okresowe_zamkniecie");
+    }
+    okresowe_zamkniecie = (bool*)shmat(ID_pamieci_okresowe_zamkniecie, NULL, 0);
+    if (okresowe_zamkniecie == (void*)-1)
+    {
+        handle_error("shmat okresowe_zamkniecie");
+    }
+    // Inicjalizacja zmiennej jako "false" - nie ma aktualnie okresowego zamkniecia
+    *okresowe_zamkniecie = false;
 
     // Tworzymy wątek, który monitoruje czas zamknięcia
     pthread_t czas;
