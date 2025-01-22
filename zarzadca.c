@@ -83,21 +83,8 @@ int main()
     {
         handle_error("popen");
     }
-
-    // Ustalenie maksymalnej liczby klientów
-    int maks_klientow = 0;
+    // Zczytanie wartości wykonania powyższego polecenia z pliku fp
     int maks_procesy = 0;
-    printf("Podaj maksymalną liczbę klientów: ");
-    if(scanf("%d", &maks_klientow) != 1) // Użytkownik podaje maksymalną liczbę klientów
-    {
-        printf("scanf maks_klientow - podano złą wartość\n");
-        exit(EXIT_FAILURE);
-    }
-    if(maks_klientow<0)
-    {
-        printf("maks_klientow - podano za małą wartość\n");
-        exit(EXIT_FAILURE);
-    }
     if(fscanf(fp, "%d", &maks_procesy) != 1)
     {
         pclose(fp);
@@ -105,7 +92,23 @@ int main()
         exit(EXIT_FAILURE);
     }
     pclose(fp);
-    // Sprawdzenie czy liczba wywołanych procesów nie będzie większa niż limit (+6 bo tyle procesów wywołuję poza klientami)
+
+    // Ustalenie maksymalnej liczby klientów
+    int maks_klientow = 0;
+    printf("Podaj maksymalną liczbę klientów: ");
+    if(scanf("%d", &maks_klientow) != 1) // Użytkownik podaje maksymalną liczbę klientów
+    {
+        printf("scanf maks_klientow - podano złą wartość\n");
+        exit(EXIT_FAILURE);
+    }
+    // Sprawdzenie czy liczba wywołanych procesów jest poprawna:
+    // Nie mniejsza od 0
+    if(maks_klientow<0)
+    {
+        printf("maks_klientow - podano za małą wartość\n");
+        exit(EXIT_FAILURE);
+    }
+    // Nie większa niż limit
     if(maks_klientow + 6 > maks_procesy)
     {
         printf("Przekroczono limit ilości procesów\n");
@@ -127,31 +130,9 @@ int main()
         printf("czas_zamkniecia - podano za krótki czas pracy\n");
         exit(EXIT_FAILURE);
     }
+
+    // Komunikat o otwarciu kompleksu basenów
     printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
-
-    // Utworzenie kolejek komunikatów dla ratowników
-    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
-    if(klucz_kolejki_ratownik_przyjmuje==-1)
-    {
-        handle_error("ftok klucz_kolejki_ratownik_przyjmuje");
-    }
-    ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
-    if(ID_kolejki_ratownik_przyjmuje==-1)
-    {
-        handle_error("msgget ID_kolejki_ratownik_przyjmuje");
-    }
-
-    // Utworzenie kolejki do wypuszczania klientów
-    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
-    if(klucz_kolejki_ratownik_wypuszcza==-1)
-    {
-        handle_error("ftok klucz_kolejki_ratownik_wypuszcza");
-    }
-    ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
-    if(ID_kolejki_ratownik_wypuszcza==-1)
-    {
-        handle_error("msgget ID_kolejki_ratownik_wypuszcza");
-    }
 
     // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
     key_t klucz_pamieci = ftok(".", 3213);
@@ -179,6 +160,29 @@ int main()
         handle_error("pthread_create czas");
     }
     
+    // Utworzenie kolejek komunikatów dla ratowników, do przyjmowania i wypuszczania klientów
+    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
+    if(klucz_kolejki_ratownik_przyjmuje==-1)
+    {
+        handle_error("ftok klucz_kolejki_ratownik_przyjmuje");
+    }
+    ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
+    if(ID_kolejki_ratownik_przyjmuje==-1)
+    {
+        handle_error("msgget ID_kolejki_ratownik_przyjmuje");
+    }
+
+    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
+    if(klucz_kolejki_ratownik_wypuszcza==-1)
+    {
+        handle_error("ftok klucz_kolejki_ratownik_wypuszcza");
+    }
+    ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
+    if(ID_kolejki_ratownik_wypuszcza==-1)
+    {
+        handle_error("msgget ID_kolejki_ratownik_wypuszcza");
+    }
+
     // Uruchomienie kasjera
     PID_kasjera = fork();
     if(PID_kasjera == -1)
