@@ -25,23 +25,6 @@ int main()
         handle_error("kasjer: msgget ID_kolejki_kasjer");
     }
 
-    // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
-    key_t klucz_pamieci_czas_przekroczony = ftok(".", 3213);
-    if(klucz_pamieci_czas_przekroczony==-1)
-    {
-        handle_error("kasjer: ftok klucz_pamieci_czas_przekroczony");
-    }
-    int ID_pamieci_czas_przekroczony = shmget(klucz_pamieci_czas_przekroczony, sizeof(bool), 0600 | IPC_CREAT);
-    if(ID_pamieci_czas_przekroczony==-1)
-    {
-        handle_error("kasjer: shmget ID_pamieci_czas_przekroczony");
-    }
-    bool *czas_przekroczony = (bool*)shmat(ID_pamieci_czas_przekroczony, NULL, 0);
-    if (czas_przekroczony == (void*)-1)
-    {
-        handle_error("kasjer: shmat czas_przekroczony");
-    }
-
     // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
     key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
     if(klucz_pamieci_okresowe_zamkniecie==-1)
@@ -70,7 +53,7 @@ int main()
         }
 
         // Decyzja o przyjęciu klienta
-        if (*czas_przekroczony == false && *okresowe_zamkniecie == false) // Jeśli basen nie jest jeszcze zamknięty i nie jest w trakcie okresowego zamknięcia
+        if (*okresowe_zamkniecie == false) // Jeśli basen nie jest w trakcie okresowego zamknięcia
         {
             wyslany.pozwolenie = true;
         }
@@ -117,6 +100,7 @@ int main()
             printf("%s[%s] Kasjer nie przyjął klienta %d%s\n", COLOR2, timestamp(), odebrany.PID, RESET);
         }
     }
+    
     return 0;
 }
 

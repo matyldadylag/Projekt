@@ -42,7 +42,6 @@ struct dane_klienta
     bool VIP;
     bool czepek;
     int wybor_basenu;
-    int drugi_wybor_basenu;
 };
 
 // Struktura komunikatu

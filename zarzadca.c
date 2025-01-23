@@ -1,14 +1,13 @@
 #include "utils.c"
 
 // ID utworzonych struktur
-int ID_kolejki_kasjer, ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik, ID_semafora_rekreacyjny, ID_semafora_olimpijski, ID_pamieci_czas_przekroczony, ID_pamieci_okresowe_zamkniecie;
-// Zmienna przechowująca liczbę wygenerowanych klientów
-int licznik_klientow;
-// Flagi w pamięci dzielonej, korzystane przez inne procesy
-bool *czas_przekroczony, *okresowe_zamkniecie;
+int ID_kolejki_kasjer, ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik, ID_semafora_rekreacyjny, ID_semafora_olimpijski, ID_pamieci_okresowe_zamkniecie;
+// Flaga w pamięci dzielonej, wykorzystywana przez kasjera i ratowników
+bool *okresowe_zamkniecie;
 // PID tworzonych procesów
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski;
-// Zmienna dotycząca czasu korzystane przez funkcję main i wątek
+// Zmienne dotycząca czasu korzystane przez funkcję main i wątek
+bool czas_przekroczony;
 time_t czas_zamkniecia;
 
 void SIGINT_handler(int sig);
@@ -116,26 +115,6 @@ int main()
     }
     printf("%sID_semafora_olimpijski: %d%s\n", COLOR1, ID_semafora_olimpijski, RESET);
 
-    // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
-    key_t klucz_pamieci_czas_przekroczony = ftok(".", 3213);
-    if(klucz_pamieci_czas_przekroczony==-1)
-    {
-        handle_error("zarzadca: ftok klucz_pamieci_czas_przekroczony");
-    }
-    ID_pamieci_czas_przekroczony = shmget(klucz_pamieci_czas_przekroczony, sizeof(bool), 0600 | IPC_CREAT);
-    if(ID_pamieci_czas_przekroczony==-1)
-    {
-        handle_error("zarzadca: shmget ID_pamieci_czas_przekroczony");
-    }
-    czas_przekroczony = (bool*)shmat(ID_pamieci_czas_przekroczony, NULL, 0);
-    if (czas_przekroczony == (void*)-1)
-    {
-        handle_error("zarzadca: shmat czas_przekroczony");
-    }
-    printf("%sID_pamieci_czas_przekroczony: %d%s\n", COLOR1, ID_pamieci_czas_przekroczony, RESET);
-    // Inicjalizacja zmiennej jako "false" - czas nie został przekroczony
-    *czas_przekroczony = false;
-
     // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
     key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
     if(klucz_pamieci_okresowe_zamkniecie==-1)
@@ -208,7 +187,8 @@ int main()
     // Komunikat o otwarciu kompleksu basenów
     printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
 
-    // Utworzenie wąteku, który monitoruje czas zamknięcia
+    // Utworzenie wąteku, który monitoruje czas zamknięcia i czas okresowego zamknięcia
+    czas_przekroczony = false;
     pthread_t czas;
     if(pthread_create(&czas, NULL, czasomierz, NULL)!=0)
     {
@@ -265,7 +245,7 @@ int main()
 
     // Generowanie klientów w losowych odstępach czasu, dopóki nie zostanie przekroczona maksymalna liczba klientów lub czas
     srand(time(NULL)); // Punkt początkowy dla losowania
-    while (maks_klientow > 0 && *czas_przekroczony==false)
+    while (maks_klientow > 0 && czas_przekroczony==false)
     {
         pid_t PID_klienta = fork();
         if(PID_klienta == -1)
@@ -352,16 +332,6 @@ void SIGINT_handler(int sig)
         handle_error("zarzadca: semctl ID_semafora_olimpijski");
     }
 
-    // Usuwa segment pamięci dzielonej dla czas_przekroczony
-    if(shmctl(ID_pamieci_czas_przekroczony, IPC_RMID, 0)==-1)
-    {
-        handle_error("shmctl ID_pamieci_czas_przekroczony");
-    }
-    if(shmdt(czas_przekroczony)==-1)
-    {
-        handle_error("shmdt czas_przekroczony");
-    }
-
     // Usuwa segment pamięci dzielonej dla okresowe_zamkniecie
     if(shmctl(ID_pamieci_okresowe_zamkniecie, IPC_RMID, 0)==-1)
     {
@@ -420,7 +390,7 @@ void* czasomierz()
     }
 
     // Osiągnięcie czasu zamknięcia
-    *czas_przekroczony = true;
+    czas_przekroczony = true;
     printf("%s[%s] Został osiągnięty czas zamknięcia%s\n", COLOR1, timestamp(), RESET);
 
     return NULL;
