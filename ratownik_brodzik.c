@@ -1,14 +1,13 @@
 #include "utils.c"
 
-// Funkcje dla wątków
-void* przyjmowanie();
-void* wypuszczanie();
+// ID struktur korzystanych przez wątki
+int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik;
 
-// Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
-int ID_kolejki_ratownik_przyjmuje;
-int ID_kolejki_ratownik_wypuszcza;
+// Zmienna czasu wykorzystywana przez wątki
+bool *okresowe_zamkniecie;
+
+// Wątki
 pthread_t przyjmuje, wypuszcza;
-int ID_semafora_brodzik;
 
 // Tablica przechowująca PID klientów aktualnie na basenie
 pid_t klienci_w_basenie[MAKS_BRODZIK];
@@ -17,6 +16,194 @@ int licznik_klientow = 0;
 // Muteks chroniący powyższe zasoby
 pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+void* przyjmowanie();
+void* wypuszczanie();
+
+void SIGINT_handler(int sig);
+void wyswietl_basen();
+
+int main()
+{
+    // Komunikat o uruchomieniu ratownika brodzika
+    printf("%s[%s] Ratownik brodzika uruchomiony%s\n", COLOR4, timestamp(), RESET);
+
+    // Obsługa SIGINT
+    if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
+    {
+        handle_error("ratownik_brodzik: signal SIGINT_handler");
+    }
+
+    // Uzyskanie dostępu do kolejki komunikatów dla ratowników - przyjmowanie klientów
+    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
+    if(klucz_kolejki_ratownik_przyjmuje==-1)
+    {
+        handle_error("ratownik_brodzik: ftok klucz_kolejki_ratownik_przyjmuje");
+    }
+    ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
+    if(ID_kolejki_ratownik_przyjmuje==-1)
+    {
+        handle_error("ratownik_brodzik: msgget ID_kolejki_ratownik_przyjmuje");
+    }
+
+    // Uzyskanie dostępu do kolejki komunikatów dla ratowników - wypuszczanie klientów
+    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
+    if(klucz_kolejki_ratownik_wypuszcza==-1)
+    {
+        handle_error("ratownik_brodzik: ftok klucz_kolejki_ratownik_wypuszcza");
+    }
+    ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
+    if(ID_kolejki_ratownik_wypuszcza==-1)
+    {
+        handle_error("ratownik_brodzik: msgget ID_kolejki_ratownik_wypuszcza");
+    }
+
+    // Uzyskanie dostępu do semafora dla brodzika
+    key_t klucz_semafora_brodzik = ftok(".", 3293);
+    if(klucz_semafora_brodzik == -1)
+    {
+        handle_error("ratownik_brodzik: ftok klucz_semafora_brodzik");
+    }
+    ID_semafora_brodzik = semget(klucz_semafora_brodzik, 1, 0600 | IPC_CREAT);
+    if(ID_semafora_brodzik == -1)
+    {
+        handle_error("ratownik_brodzik: semget ID_semafora_brodzik");
+    }
+
+    // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
+    key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
+    if(klucz_pamieci_okresowe_zamkniecie==-1)
+    {
+        handle_error("ratownik_brodzik: ftok klucz_pamieci_okresowe_zamkniecie");
+    }
+    int ID_pamieci_okresowe_zamkniecie = shmget(klucz_pamieci_okresowe_zamkniecie, sizeof(bool), 0600 | IPC_CREAT);
+    if(ID_pamieci_okresowe_zamkniecie==-1)
+    {
+        handle_error("ratownik_brodzik: shmget ID_pamieci_okresowe_zamkniecie");
+    }
+    okresowe_zamkniecie = (bool*)shmat(ID_pamieci_okresowe_zamkniecie, NULL, 0);
+    if (okresowe_zamkniecie == (void*)-1)
+    {
+        handle_error("ratownik_brodzik: shmat okresowe_zamkniecie");
+    }
+    *okresowe_zamkniecie = false;
+
+    // Utworzenie wątków do przyjmowania i wypuszczania klientów
+    if(pthread_create(&przyjmuje, NULL, przyjmowanie, NULL) != 0)
+    {
+        handle_error("ratownik_brodzik: pthread_create przyjmuje");
+    }
+    if(pthread_create(&wypuszcza, NULL, wypuszczanie, NULL) != 0)
+    {
+        handle_error("ratownik_brodzik: pthread_create wypuszcza");
+    }
+
+    pthread_join(przyjmuje, NULL);
+    pthread_join(wypuszcza, NULL);
+
+    return 0;
+}
+
+// Wątek przyjmujący klientów do brodzika
+void* przyjmowanie()
+{
+    // Deklaracja struktur wysyłanych i odbieranych od klienta
+    struct komunikat odebrany, wyslany;
+
+    while(1) // Dopóki ratownik nie dostanie SIGINT od zarządcy
+    {
+        // Wyświetlenie aktualnego stanu basenu
+        wyswietl_basen();
+
+        // Odebranie wiadomości
+        if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
+        {
+            handle_error("ratownik_brodzik: msgrcv ID_kolejki_ratownik_przyjmuje");
+        }
+
+        // Decyzja o przyjęciu klienta
+        if(odebrany.wiek <= 5 && *okresowe_zamkniecie == false) // Sprawdzenie, czy klient spełnia zasadę regulaminu i czy nie trwa okresowe zamknięcie
+        {
+            // Klient dostaje pozwolenie i ID semafora, który ma obniżyć
+            wyslany.pozwolenie = true;
+            wyslany.ID_semafora = ID_semafora_brodzik;
+
+            // Dodanie klienta do tablicy i podwyższenie licznika klientów
+            pthread_mutex_lock(&klient_mutex); // Blokada muteksu
+            klienci_w_basenie[licznik_klientow++] = odebrany.PID;
+            pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
+        }
+        else
+        {
+            wyslany.pozwolenie = false;
+        }
+
+        // Wysłanie wiadomości
+        wyslany.mtype = odebrany.PID;
+        if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+        {
+            handle_error("ratownik_brodzik: msgsnd ID_kolejki_ratownik_przyjmuje");
+        }
+
+        // Komunikat o przyjęciu lub nie klienta
+        if(wyslany.pozwolenie == true)
+        {
+            printf("%s[%s] Ratownik brodzika przyjął klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
+        }
+        else
+        {
+            printf("%s[%s] Ratownik brodzika nie przyjął klienta %d%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
+        }
+    }
+}
+
+// Wątek wypuszczający klientów z brodzika
+void* wypuszczanie()
+{
+    // Deklaracja struktur wysyłanych i odbieranych od klienta
+    struct komunikat odebrany, wyslany;
+
+    while(1) // Dopóki ratownik nie dostanie SIGINT od zarządcy
+    {        
+        // Wyświetlenie aktualnego stanu basenu
+        wyswietl_basen();
+
+        // Odebranie wiadomości
+        if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
+        {
+            handle_error("ratownik_brodzik: msgrcv ID_kolejki_ratownik_wypuszcza");
+        }
+
+        // Usunięcie klienta wychodzącego z tablicy
+        pthread_mutex_lock(&klient_mutex); // Blokada muteksu
+        int indeks_klienta_do_usuniecia;
+        for (int i = 0; i < licznik_klientow; i++) // Znaleznie indeksu usuwanego klienta
+        {
+            if (klienci_w_basenie[i] == odebrany.PID)
+            {
+                indeks_klienta_do_usuniecia = i;
+                break;
+            }
+        }
+        for (int i = indeks_klienta_do_usuniecia; i < licznik_klientow - 1; i++) // Przesunięcie pozostałych klientów w tablicy
+        {
+            klienci_w_basenie[i] = klienci_w_basenie[i + 1];
+        }
+        licznik_klientow--; // Obniżenie licznika klientów
+        pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
+
+        // Wysłanie wiadomości
+        wyslany.mtype = odebrany.PID;
+        wyslany.ID_semafora = ID_semafora_brodzik;
+        if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
+        {
+            handle_error("ratownik_brodzik: msgsnd ID_kolejki_ratownik_wypuszcza");
+        }
+
+        // Komunikat o wypuszczeniu klienta
+        printf("%s[%s] Ratownik brodzika wypuścił klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
+    }
+}
+
 // Obsługa SIGINT
 void SIGINT_handler(int sig)
 {
@@ -24,7 +211,6 @@ void SIGINT_handler(int sig)
     pthread_kill(przyjmuje, SIGINT);
     pthread_kill(wypuszcza, SIGINT);
 
-    pthread_mutex_lock(&klient_mutex); // Blokowanie tablicy
     for (int i = 0; i < licznik_klientow; i++)
     {
         kill(klienci_w_basenie[i], SIGINT);
@@ -36,7 +222,7 @@ void SIGINT_handler(int sig)
     exit(0);
 }
 
-void print_klienci_w_basenie()
+void wyswietl_basen()
 {
     printf("%s[%s] Brodzik: [", COLOR4, timestamp());
     for (int i = 0; i < licznik_klientow; i++)
@@ -48,168 +234,4 @@ void print_klienci_w_basenie()
         }
     }
     printf("]%s\n", RESET);
-}
-
-int main()
-{
-    // Obsługa SIGINT
-    if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
-    {
-        handle_error("signal SIGINT_handler");
-    }
-  
-    // Komunikat o uruchomieniu ratownika brodzika
-    printf("%s[%s] Ratownik brodzika uruchomiony%s\n", COLOR4, timestamp(), RESET);
-
-    // Utworzenie kolejki do przyjmowania klientów
-    key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
-    if(klucz_kolejki_ratownik_przyjmuje == -1)
-    {
-        handle_error("ftok klucz_kolejki_ratownik_przyjmuje");
-    }
-    ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
-    if(ID_kolejki_ratownik_przyjmuje == -1)
-    {
-        handle_error("msgget ID_kolejki_ratownik_przyjmuje");
-    }
-
-    // Utworzenie kolejki do wypuszczania klientów
-    key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
-    if(klucz_kolejki_ratownik_wypuszcza == -1)
-    {
-        handle_error("ftok klucz_kolejki_ratownik_wypuszcza");
-    }
-    ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
-    if(ID_kolejki_ratownik_wypuszcza == -1)
-    {
-        handle_error("msgget ID_kolejki_ratownik_wypuszcza");
-    }
-
-    key_t klucz_semafora_brodzik = ftok(".", 3293);
-    if(klucz_semafora_brodzik == -1)
-    {
-        handle_error("ftok klucz_semafora");
-    }
-    ID_semafora_brodzik = semget(klucz_semafora_brodzik, 1, 0600 | IPC_CREAT);
-    if(ID_semafora_brodzik == -1)
-    {
-        handle_error("semget ID_semafora");
-    }
-    if(semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK) == -1)
-    {
-        handle_error("semctl SETVAL");
-    }
-  
-
-    // Utworzenie wątków do przyjmowania i wypuszczania klientów
-    if(pthread_create(&przyjmuje, NULL, przyjmowanie, NULL) != 0)
-    {
-        handle_error("pthread_create przyjmuje");
-    }
-    if(pthread_create(&wypuszcza, NULL, wypuszczanie, NULL) != 0)
-    {
-        handle_error("pthread_create wypuszcza");
-    }
-
-    pthread_join(przyjmuje, NULL);
-    pthread_join(wypuszcza, NULL);
-
-    return 0;
-}
-
-void* przyjmowanie()
-{
-    struct komunikat odebrany, wyslany;
-
-    while(1)
-    {
-        print_klienci_w_basenie();
-
-        if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
-        {
-            handle_error("msgrcv ratownik brodzik przyjmuje");
-        }
-
-        if(odebrany.wiek <= 5)
-        {
-            pthread_mutex_lock(&klient_mutex);
-            klienci_w_basenie[licznik_klientow++] = odebrany.PID;
-            pthread_mutex_unlock(&klient_mutex);
-
-            wyslany.mtype = odebrany.PID;
-            wyslany.PID = odebrany.PID;
-            wyslany.pozwolenie = true;
-            wyslany.id_semafora = ID_semafora_brodzik;
-
-            printf("Ratownik brodzik wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nid_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.id_semafora);
-
-            if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
-            {
-                handle_error("msgsnd brodzik ratownik");
-            }
-
-            printf("%s[%s] Ratownik brodzika przyjął klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
-        }
-        else
-        {
-            wyslany.mtype = odebrany.PID;
-            wyslany.PID = odebrany.PID;
-            wyslany.pozwolenie = false;
-
-            printf("Ratownik rekreacyjny wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nid_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.id_semafora);
-
-            if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
-            {
-                handle_error("msgsnd brodzik ratownik przyjmuje");
-            }
-
-            printf("%s[%s] Ratownik brodzika nie przyjął klienta %d%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
-        }
-    }
-}
-
-void* wypuszczanie()
-{
-    struct komunikat odebrany, wyslany;
-
-    while(1)
-    {
-        print_klienci_w_basenie();
-
-        if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
-        {
-            handle_error("msgrcv ratownik brodzik wypuszcza");
-        }
-
-        pthread_mutex_lock(&klient_mutex);
-
-        int indeks_klienta_do_usuniecia;
-        for (int i = 0; i < licznik_klientow; i++)
-        {
-            if (klienci_w_basenie[i] == odebrany.PID)
-            {
-                indeks_klienta_do_usuniecia = i;
-                break;
-            }
-        }
-
-        for (int i = indeks_klienta_do_usuniecia; i < licznik_klientow - 1; i++)
-        {
-            klienci_w_basenie[i] = klienci_w_basenie[i + 1];
-        }
-        licznik_klientow--;
-        
-        pthread_mutex_unlock(&klient_mutex);
-
-        wyslany.mtype = odebrany.PID;
-        wyslany.PID = odebrany.PID;
-        wyslany.id_semafora = ID_semafora_brodzik;
-
-        if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
-        {
-            handle_error("msgsnd ID_kolejki_ratownik_wypuszcza");
-        }
-
-        printf("%s[%s] Ratownik brodzika wypuścił klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
-    }
 }

@@ -160,7 +160,7 @@ void* przyjmowanie()
                 wyslany.mtype = odebrany.PID;
                 wyslany.PID = odebrany.PID;
                 wyslany.pozwolenie = true;
-                wyslany.id_semafora = ID_semafora_rekreacyjny;
+                wyslany.ID_semafora = ID_semafora_rekreacyjny;
 
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {
@@ -203,9 +203,9 @@ void* przyjmowanie()
                 wyslany.mtype = odebrany.PID;
                 wyslany.PID = odebrany.PID;
                 wyslany.pozwolenie = true;
-                wyslany.id_semafora = ID_semafora_rekreacyjny;
+                wyslany.ID_semafora = ID_semafora_rekreacyjny;
 
-                printf("Ratownik rekreacyjny wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nid_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.id_semafora);
+                printf("Ratownik rekreacyjny wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nID_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.ID_semafora);
 
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {
@@ -220,7 +220,7 @@ void* przyjmowanie()
                 wyslany.PID = odebrany.PID;
                 wyslany.pozwolenie = false;
 
-                printf("Ratownik rekreacyjny wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nid_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.id_semafora);
+                printf("Ratownik rekreacyjny wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nID_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.ID_semafora);
 
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {
@@ -304,7 +304,7 @@ void* wypuszczanie()
 
         wyslany.mtype = odebrany.PID;
         wyslany.PID = odebrany.PID;
-        wyslany.id_semafora = ID_semafora_rekreacyjny;
+        wyslany.ID_semafora = ID_semafora_rekreacyjny;
 
         if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
         {

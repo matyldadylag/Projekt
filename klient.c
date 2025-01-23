@@ -3,6 +3,8 @@
 time_t czas_wyjscia;
 
 void SIGINT_handler(int sig);
+void SIGUSR1_handler(int sig);
+void SIGUSR2_handler(int sig);
 
 int main()
 {
@@ -12,11 +14,13 @@ int main()
     // Zainicjowanie danych klienta
     struct dane_klienta klient;
     klient.PID = getpid();
-    klient.wiek = (rand() % 70) + 1; // Losowo generuje wiek od 1 do 70 lat
+    //klient.wiek = (rand() % 70) + 1; // Losowo generuje wiek od 1 do 70 lat
+    klient.wiek = 3;
     klient.wiek_opiekuna = (klient.wiek <= 10) ? ((rand() % 53) + 19) : 0; // W wypadku, gdy klient.wiek <= 10 generuje się wiek opiekuna (między 18 a 70 lat)
     klient.VIP = (rand() % 5 == 0); // Klient ma szansę 1:5 na bycie VIP
     klient.czepek = (rand() % 5 == 0); // Klient ma szansę 1:5 na założenie czepka
-    klient.wybor_basenu = 11 + rand() % 3; // Wybór basenu: 11 - brodzik, 12 - basen rekreacyjny, 13 - basen olimpijski
+    //klient.wybor_basenu = 11 + rand() % 3; // Wybór basenu: 11 - brodzik, 12 - basen rekreacyjny, 13 - basen olimpijski
+    klient.wybor_basenu = 11;
 
     // Komunikat o uruchomieniu klienta
     if(klient.wiek_opiekuna == 0)
@@ -116,36 +120,62 @@ int main()
         wyslany.wiek = klient.wiek;
         wyslany.wiek_opiekuna = klient.wiek_opiekuna;
 
-        // Wysłanie wiadomości
-        if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+        // Zmienna śledząca, czy klient znajduje się aktualnie w basenie
+        bool plywa = false;
+
+        while(time(NULL)<czas_wyjscia)
         {
-            handle_error("klient: msgsnd ID_kolejki_ratownik_przyjmuje");
+            if(plywa == false)
+            {
+                // Wysłanie wiadomości
+                if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+                {
+                    handle_error("klient: msgsnd ID_kolejki_ratownik_przyjmuje");
+                }
+
+                // Odebranie odpowiedzi zwrotnej
+                if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(struct komunikat) - sizeof(long), wyslany.PID, 0)==-1)
+                {
+                    handle_error("klient: msgrcv ID_kolejki_ratownik_przyjmuje");
+                }
+
+                if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
+                {
+                    plywa = true;
+                }
+                else
+                {
+                    sleep(10);
+                }
+            }
+            else
+            {
+                sleep(10);
+            }
         }
 
-        // Odebranie odpowiedzi zwrotnej
-        if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(struct komunikat) - sizeof(long), wyslany.PID, 0)==-1)
+        for(int i = 0; i < 1; i++)
         {
-            handle_error("klient: msgrcv ID_kolejki_ratownik_przyjmuje");
-        }
-
-        if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
-        {
-            while(time(NULL)<czas_wyjscia)
+            if(time(NULL) < czas_wyjscia)
             {
                 sleep(1);
             }
+            else
+            {
+                break;
+            }
+        }
 
-            // Wysłanie wiadomości z prośbą o wyjście
-            if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
-            {
-                handle_error("klient: msgsnd ID_kolejki_ratownik_wypuszcza");
-            }
-            
-            // Odebranie odpowiedzi zwrotnej
-            if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(struct komunikat) - sizeof(long), wyslany.PID, 0)==-1)
-            {
-                handle_error("klient: msgrcv ID_kolejki_ratownik_wypuszcza");
-            }
+        // Wysłanie wiadomości z prośbą o wyjście
+        if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+        {
+            handle_error("klient: msgsnd ID_kolejki_ratownik_wypuszcza");
+        }
+
+        // Odebranie odpowiedzi zwrotnej
+        if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(struct komunikat) - sizeof(long), wyslany.PID, 0)==-1)
+        {
+            handle_error("klient: msgrcv ID_kolejki_ratownik_wypuszcza");
         }
     }
     
@@ -161,4 +191,14 @@ void SIGINT_handler(int sig)
     printf("%s[%s] Klient %d kończy działanie%s\n", COLOR3, timestamp(), getpid(), RESET);
 
     exit(0);
+}
+
+void SIGUSR1_handler(int sig)
+{
+
+}
+
+void SIGUSR2_handler(int sig)
+{
+
 }

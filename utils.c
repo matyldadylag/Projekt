@@ -52,7 +52,7 @@ struct komunikat
     int wiek;
     int wiek_opiekuna;
     bool pozwolenie;
-    int id_semafora;
+    int ID_semafora;
 };
 
 void handle_error(const char *msg)

@@ -36,8 +36,7 @@ int main()
     {
         handle_error("zarzadca: msgget ID_kolejki_kasjer");
     }
-    printf("%sID_kolejki_kasjer: %d%s\n", COLOR1, ID_kolejki_kasjer, RESET);
-
+    
     // Utworzenie kolejki komunikatów dla ratowników - przyjmowanie klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
     if(klucz_kolejki_ratownik_przyjmuje==-1)
@@ -49,8 +48,7 @@ int main()
     {
         handle_error("zarzadca: msgget ID_kolejki_ratownik_przyjmuje");
     }
-    printf("%sID_kolejki_ratownik_przyjmuje: %d%s\n", COLOR1, ID_kolejki_ratownik_przyjmuje, RESET);
-
+    
     // Utworzenie kolejki komunikatów dla ratowników - wypuszczanie klientów
     key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
     if(klucz_kolejki_ratownik_wypuszcza==-1)
@@ -62,8 +60,7 @@ int main()
     {
         handle_error("zarzadca: msgget ID_kolejki_ratownik_wypuszcza");
     }
-    printf("%sID_kolejki_ratownik_wypuszcza: %d%s\n", COLOR1, ID_kolejki_ratownik_wypuszcza, RESET);
-
+    
     // Utworzenie semafora dla brodzika
     key_t klucz_semafora_brodzik = ftok(".", 3293);
     if(klucz_semafora_brodzik == -1)
@@ -79,8 +76,7 @@ int main()
     {
         handle_error("zarzadca: semctl SETVAL ID_semafora_brodzik");
     }
-    printf("%sID_semafora_brodzik: %d%s\n", COLOR1, ID_semafora_brodzik, RESET);
-  
+    
     // Utworzenie semafora dla basenu rekreacyjnego
     key_t klucz_semafora_rekreacyjny = ftok(".", 2003);
     if(klucz_semafora_rekreacyjny == -1)
@@ -96,8 +92,7 @@ int main()
     {
         handle_error("zarzadca: semctl SETVAL ID_semafora_rekreacyjny");
     }
-    printf("%sID_semafora_rekreacyjny: %d%s\n", COLOR1, ID_semafora_rekreacyjny, RESET);
-
+    
     // Utworzenie semafora dla basenu olimpijskiego
     key_t klucz_semafora_olimpijski = ftok(".", 9447);
     if(klucz_semafora_olimpijski==-1)
@@ -113,8 +108,7 @@ int main()
     {
         handle_error("zarzadca: semctl ID_semafora_olimpijski");
     }
-    printf("%sID_semafora_olimpijski: %d%s\n", COLOR1, ID_semafora_olimpijski, RESET);
-
+    
     // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
     key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
     if(klucz_pamieci_okresowe_zamkniecie==-1)
@@ -131,7 +125,6 @@ int main()
     {
         handle_error("zarzadca: shmat okresowe_zamkniecie");
     }
-    printf("%sID_pamieci_okresowe_zamkniecie: %d%s\n", COLOR1, ID_pamieci_okresowe_zamkniecie, RESET);
     // Inicjalizacja zmiennej jako "false" - nie ma aktualnie okresowego zamkniecia
     *okresowe_zamkniecie = false;
 
