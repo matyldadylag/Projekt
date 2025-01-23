@@ -140,6 +140,8 @@ void* przyjmowanie()
             wyslany.pozwolenie = true;
             wyslany.id_semafora = ID_semafora_olimpijski;
 
+            printf("Ratownik olimpijski wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nid_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.id_semafora);
+
             // Wysłanie wiadomości
             if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
             {
@@ -154,6 +156,8 @@ void* przyjmowanie()
             wyslany.mtype = odebrany.PID;
             wyslany.PID = odebrany.PID;
             wyslany.pozwolenie = false;
+
+            printf("Ratownik olimpijski wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nid_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.id_semafora);
 
             // Wysłanie wiadomości
             if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)

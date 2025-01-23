@@ -205,6 +205,8 @@ void* przyjmowanie()
                 wyslany.pozwolenie = true;
                 wyslany.id_semafora = ID_semafora_rekreacyjny;
 
+                printf("Ratownik rekreacyjny wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nid_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.id_semafora);
+
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {
                     handle_error("msgsnd ratownik rekreacyjny przyjmuje");
@@ -217,6 +219,8 @@ void* przyjmowanie()
                 wyslany.mtype = odebrany.PID;
                 wyslany.PID = odebrany.PID;
                 wyslany.pozwolenie = false;
+
+                printf("Ratownik rekreacyjny wysyła strukturę:\nmtype:%lf\nPID:%d\nwiek:%d\nwiek_opiekuna:%d\npozwolenie:%d\nid_semafora:%d\n", wyslany.mtype, wyslany.PID, wyslany.wiek, wyslany.wiek_opiekuna, wyslany.pozwolenie, wyslany.id_semafora);
 
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
                 {

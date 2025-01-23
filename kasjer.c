@@ -1,17 +1,8 @@
 #include "utils.c"
 
-// Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
-pid_t ID_kolejki_kasjer;
-
 // Obsługa SIGINT
 void SIGINT_handler(int sig)
 {
-    // Usunięcie kolejki komunikatów
-    if (msgctl(ID_kolejki_kasjer, IPC_RMID, 0) == -1)
-    {
-        perror("msgctl ID_kolejki_kasjer");
-    }
-
     // Komunikat o zakończeniu działania kasjera
     printf("%s[%s] Kasjer kończy działanie%s\n", COLOR2, timestamp(), RESET);
 
@@ -55,7 +46,7 @@ int main()
         handle_error("ftok klucz_kolejki_kasjer");
     }
 
-    ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600);
+    int ID_kolejki_kasjer = msgget(klucz_kolejki_kasjer, IPC_CREAT | 0600);
     if (ID_kolejki_kasjer == -1)
     {
         handle_error("msgget ID_kolejki_kasjer");

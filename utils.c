@@ -22,24 +22,16 @@
 #define CZAS_PRZERWY_PROCENT 0.15
 
 // Semafory basenów - maksymalna liczba osób w danym basenie
-#define MAKS_OLIMPIJSKI 2
-#define MAKS_REKREACYJNY 2
-#define MAKS_BRODZIK 2
+#define MAKS_OLIMPIJSKI 3
+#define MAKS_REKREACYJNY 3
+#define MAKS_BRODZIK 3
 
-// Kolejki komunikatów
-#define MAKS_DLUG_KOM 255 // Maksymalna długość przekazywanych komunikatów
-// Makrosy adresatów kolejek komunikatów
+// Kolejki komunikatów - adresy dla kolejek komunikatów
 #define KASJER_VIP 1 // Musi mieć mniejszą wartość niż KASJER
 #define KASJER 2
 #define RATOWNIK_BRODZIK 11
 #define RATOWNIK_REKREACYJNY 12
 #define RATOWNIK_OLIMPIJSKI 13
-
-void handle_error(const char *msg)
-{
-    perror(msg);
-    exit(EXIT_FAILURE);
-}
 
 // Struktura przechowująca dane klienta
 struct dane_klienta
@@ -63,6 +55,12 @@ struct komunikat
     bool pozwolenie;
     int id_semafora;
 };
+
+void handle_error(const char *msg)
+{
+    perror(msg);
+    exit(EXIT_FAILURE);
+}
 
 // Funkcje operacji semaforowych dla zwykłego klienta
 static void semafor_v(int semafor_id, int numer_semafora)

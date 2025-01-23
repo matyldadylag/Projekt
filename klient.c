@@ -60,7 +60,7 @@ int main()
     // Punkt początkowy do losowania na podstawie PID procesu
     srand(getpid());
 
-            // Utworzenie semafora
+    // Utworzenie semafora
     key_t klucz_semafora_brodzik = ftok(".", 3293);
     if(klucz_semafora_brodzik == -1)
     {
@@ -218,6 +218,7 @@ int main()
 
     if(odebrany.pozwolenie == true) // Jeśli klient dostał się do basenu, pływa aż nadejdzie koniec czasu
     {
+        printf("Klient %d opuszcza semafor %d\n", getpid(), odebrany.id_semafora);
         semafor_p(odebrany.id_semafora, 0);
 
         if (pthread_join(czas, NULL) != 0)
@@ -267,7 +268,7 @@ int main()
     // Klient odbiera wiadomość zwrotną od ratownika
     odbierz_komunikat(ID_kolejki_ratownik_wypuszcza, &odebrany, wyslany.PID);
 
-    printf("Klient %d opuszcza semafor %d\n", getpid(), odebrany.id_semafora);
+    printf("Klient %d zwalnia semafor %d\n", getpid(), odebrany.id_semafora);
     semafor_v(odebrany.id_semafora, 0);
 
     // Gdy klient chce wyjść z basenu, wywołuje SIGINT
