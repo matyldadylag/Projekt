@@ -11,7 +11,6 @@ pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratowni
 // Zmienna dotycząca czasu korzystane przez funkcję main i wątek
 time_t czas_zamkniecia;
 
-// Deklaracje funkcji zdefiniowanych niżej
 void SIGINT_handler(int sig);
 void* czasomierz();
 
@@ -64,7 +63,7 @@ int main()
     {
         handle_error("zarzadca: msgget ID_kolejki_ratownik_wypuszcza");
     }
-    printf("%sID_kolejki_ratownik_wypuszcza: %d%s\n", COLOR1, ID_kolejki_kasjer, RESET);
+    printf("%sID_kolejki_ratownik_wypuszcza: %d%s\n", COLOR1, ID_kolejki_ratownik_wypuszcza, RESET);
 
     // Utworzenie semafora dla brodzika
     key_t klucz_semafora_brodzik = ftok(".", 3293);
@@ -115,7 +114,7 @@ int main()
     {
         handle_error("zarzadca: semctl ID_semafora_olimpijski");
     }
-    printf("%sID_semafora_olimpijski: %d%s\n", COLOR1, ID_semafora_rekreacyjny, RESET);
+    printf("%sID_semafora_olimpijski: %d%s\n", COLOR1, ID_semafora_olimpijski, RESET);
 
     // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool czas_przekroczony
     key_t klucz_pamieci_czas_przekroczony = ftok(".", 3213);
@@ -280,7 +279,7 @@ int main()
         }
         else
         {
-
+ 
         }
         sleep(rand()%5);
         maks_klientow--;
@@ -315,7 +314,7 @@ void SIGINT_handler(int sig)
     
     // Zarządca czeka na zakończenie pozostałych procesów
     printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", COLOR1, timestamp(), RESET);    
-    //while (wait(NULL) > 0);
+    while (wait(NULL) > 0);
 
     // Usunięcie kolejki komunikatów dla kasjera
     if(msgctl(ID_kolejki_kasjer, IPC_RMID, 0)==-1)
