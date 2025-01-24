@@ -216,6 +216,12 @@ void SIGINT_handler(int sig)
         kill(klienci_w_basenie[i], SIGINT);
     }
 
+    // Usunięcie muteksu
+    if (pthread_mutex_destroy(&klient_mutex) != 0)
+    {
+        handle_error("ratownik_brodzik: pthread_mutex_destroy klient_mutex");
+    }
+
     // Komunikat o zakończeniu działania ratownika brodzika
     printf("%s[%s] Ratownik brodzika kończy działanie%s\n", COLOR4, timestamp(), RESET);
 

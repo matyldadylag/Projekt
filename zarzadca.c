@@ -2,16 +2,24 @@
 
 // ID utworzonych struktur
 int ID_kolejki_kasjer, ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik, ID_semafora_rekreacyjny, ID_semafora_olimpijski, ID_pamieci_okresowe_zamkniecie;
-// Flaga w pamięci dzielonej, wykorzystywana przez kasjera i ratowników
-bool *okresowe_zamkniecie;
+
 // PID tworzonych procesów
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski;
+
+// Licznik utworzonych klientów
+int licznik_klientow;
+// Muteks chroniący powyższe zasoby
+pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 // Zmienne dotycząca czasu korzystane przez funkcję main i wątek
 bool czas_przekroczony;
 time_t czas_zamkniecia;
+// Flaga w pamięci dzielonej, wykorzystywana przez kasjera i ratowników
+bool *okresowe_zamkniecie;
 
 void SIGINT_handler(int sig);
 void* czasomierz();
+void* sprzatanie_klientow();
 
 int main()
 {
@@ -236,9 +244,17 @@ int main()
         handle_error("zarzadca: execl ratownik_basen_olimpijski");
     }
 
+    // Uruchomienie wątka sprzątającego klientów
+    pthread_t sprzatanie;
+    if(pthread_create(&sprzatanie, NULL, sprzatanie_klientow, NULL)!=0)
+    {
+        handle_error("zarzadca: pthread_create sprzatanie");
+    }
+
     // Generowanie klientów w losowych odstępach czasu, dopóki nie zostanie przekroczona maksymalna liczba klientów lub czas
     srand(time(NULL)); // Punkt początkowy dla losowania
-    while (maks_klientow > 0 && czas_przekroczony==false)
+    licznik_klientow = 0;
+    while (licznik_klientow <= maks_klientow && czas_przekroczony==false)
     {
         pid_t PID_klienta = fork();
         if(PID_klienta == -1)
@@ -254,8 +270,10 @@ int main()
         {
  
         }
+        pthread_mutex_lock(&klient_mutex);
+        licznik_klientow++;
+        pthread_mutex_unlock(&klient_mutex);
         sleep(rand()%5);
-        maks_klientow--;
     }
 
     // Wyświetlenie komunikatu o przekroczeniu maksymalnej liczby klientów
@@ -268,6 +286,12 @@ int main()
     if(pthread_join(czas, NULL) == -1)
     {
         handle_error("zarzadca: pthread_join czas");
+    }
+
+    // Zarządca przyłącza wątek sprzątający klientów
+    if(pthread_join(sprzatanie, NULL) == -1)
+    {
+        handle_error("zarzadca: pthread_join sprzatanie");
     }
 
     // Zarządca zamyka kompleks basenów i kończy działanie
@@ -335,6 +359,12 @@ void SIGINT_handler(int sig)
         handle_error("shmdt okresowe_zamkniecie");
     }
 
+    // Usunięcie muteksu
+    if (pthread_mutex_destroy(&klient_mutex) != 0)
+    {
+        handle_error("zarzadca: pthread_mutex_destroy klient_mutex");
+    }
+
     // Komunikaty o zakończeniu pracy
     printf("%s[%s] Kompleks basenów jest zamknięty%s\n", COLOR1, timestamp(), RESET);
     printf("%s[%s] Zarządca kończy działanie%s\n", COLOR1, timestamp(), RESET);
@@ -386,5 +416,25 @@ void* czasomierz()
     czas_przekroczony = true;
     printf("%s[%s] Został osiągnięty czas zamknięcia%s\n", COLOR1, timestamp(), RESET);
 
+    return NULL;
+}
+
+void *sprzatanie_klientow()
+{
+    while (czas_przekroczony == false)
+    {
+        pid_t pid_klienta = waitpid(-1, NULL, WNOHANG);
+        if (pid_klienta > 0)
+        {
+            printf("Klient %d posprzątany\n", pid_klienta);
+            pthread_mutex_lock(&klient_mutex);
+            licznik_klientow--;
+            pthread_mutex_unlock(&klient_mutex);
+        }
+        else if (pid_klienta == 0)
+        {
+            sleep(1);
+        }
+    }
     return NULL;
 }
