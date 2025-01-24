@@ -25,11 +25,11 @@ int main()
     // Komunikat o uruchomieniu klienta
     if(klient.wiek_opiekuna == 0)
     {
-        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. VIP: %d. Czepek: %d. Preferowany basen: %d\n%s", COLOR3, timestamp(), klient.PID, klient.wiek, klient.VIP, klient.czepek, klient.wybor_basenu, RESET);
+        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. VIP: %d. Czepek: %d. Preferowany basen: %d%s\n", COLOR3, timestamp(), klient.PID, klient.wiek, klient.VIP, klient.czepek, klient.wybor_basenu, RESET);
     }
     else
     {
-        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. Wiek opiekuna: %d. VIP: %d. Czepek: %d. Preferowany basen: %d\n%s", COLOR3, timestamp(), klient.PID, klient.wiek, klient.wiek_opiekuna, klient.VIP, klient.czepek, klient.wybor_basenu, RESET);
+        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. Wiek opiekuna: %d. VIP: %d. Czepek: %d. Preferowany basen: %d%s\n", COLOR3, timestamp(), klient.PID, klient.wiek, klient.wiek_opiekuna, klient.VIP, klient.czepek, klient.wybor_basenu, RESET);
     }
 
     // Obsługa sygnału SIGINT
@@ -104,13 +104,13 @@ int main()
         // Komunikat o założeniu pampersa
         if(klient.wiek <= 3)
         {
-            printf("%s[%s] Klientowi %d opiekun założył pampersa\n%s", COLOR3, timestamp(), klient.PID, RESET);
+            printf("%s[%s] Klientowi %d opiekun założył pampersa%s\n", COLOR3, timestamp(), klient.PID, RESET);
         }
 
         // Komunikat o założeniu czepka
         if(klient.czepek == true)
         {
-            printf("%s[%s] Klient %d założył czepek\n%s", COLOR3, timestamp(), klient.PID, RESET);
+            printf("%s[%s] Klient %d założył czepek%s\n", COLOR3, timestamp(), klient.PID, RESET);
         }
 
         // Komunikacja z ratownikiem
@@ -191,14 +191,4 @@ void SIGINT_handler(int sig)
     printf("%s[%s] Klient %d kończy działanie%s\n", COLOR3, timestamp(), getpid(), RESET);
 
     exit(0);
-}
-
-void SIGUSR1_handler(int sig)
-{
-
-}
-
-void SIGUSR2_handler(int sig)
-{
-
 }

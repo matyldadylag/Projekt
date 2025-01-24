@@ -17,14 +17,14 @@
 #include <errno.h>
 
 // Długość biletu czasowego - maksymalny czas, jaki proces może spędzić na basenie (w sekundach)
-#define BILET 10
+#define BILET 5
 // Czas przerwy jest wyliczany procentowo na podstawie tego, jak długo basen jest otwarty
-#define CZAS_PRZERWY_PROCENT 0.15
+#define CZAS_PRZERWY_PROCENT 0.3
 
 // Semafory basenów - maksymalna liczba osób w danym basenie
-#define MAKS_OLIMPIJSKI 3
-#define MAKS_REKREACYJNY 3
-#define MAKS_BRODZIK 3
+#define MAKS_OLIMPIJSKI 5
+#define MAKS_REKREACYJNY 5
+#define MAKS_BRODZIK 5
 
 // Kolejki komunikatów - adresy dla kolejek komunikatów
 #define KASJER_VIP 1 // Musi mieć mniejszą wartość niż KASJER
@@ -52,7 +52,6 @@ struct komunikat
     int wiek;
     int wiek_opiekuna;
     bool pozwolenie;
-    int ID_semafora;
 };
 
 void handle_error(const char *msg)
@@ -61,7 +60,7 @@ void handle_error(const char *msg)
     exit(EXIT_FAILURE);
 }
 
-// Funkcje operacji semaforowych dla zwykłego klienta
+// Funkcje operacji semaforowych
 static void semafor_v(int semafor_id, int numer_semafora)
 {
     struct sembuf bufor_sem;
@@ -71,7 +70,6 @@ static void semafor_v(int semafor_id, int numer_semafora)
 
     if(semop(semafor_id, &bufor_sem, 1)==-1)
     {
-        fprintf(stderr, "Error: semop V failed. Reason: %s\n", strerror(errno));
         handle_error("semop V");
     }
 }
@@ -85,7 +83,6 @@ static void semafor_p(int semafor_id, int numer_semafora)
     
     if(semop(semafor_id, &bufor_sem, 1)==-1)
     {
-        fprintf(stderr, "Error: semop P failed. Reason: %s\n", strerror(errno));
         handle_error("semop P");
     }
 }
@@ -130,6 +127,6 @@ const char *RESET = "\033[0m";
 const char *COLOR1 = "\033[38;2;228;3;3m";
 const char *COLOR2 = "\033[38;2;255;140;0m";
 const char *COLOR3 = "\033[38;2;255;237;0m";
-const char *COLOR4 = "\033[38;2;0;102;204m";
-const char *COLOR5 = "\033[38;2;51;153;255m";
-const char *COLOR6 = "\033[38;2;0;51;153m";
+const char *COLOR4 = "\033[38;2;0;138;0m";
+const char *COLOR5 = "\033[38;2;0;72;255m";
+const char *COLOR6 = "\033[38;2;117;5;135m";

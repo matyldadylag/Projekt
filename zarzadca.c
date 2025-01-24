@@ -2,15 +2,8 @@
 
 // ID utworzonych struktur
 int ID_kolejki_kasjer, ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik, ID_semafora_rekreacyjny, ID_semafora_olimpijski, ID_pamieci_okresowe_zamkniecie;
-
 // PID tworzonych procesów
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski;
-
-// Licznik utworzonych klientów
-int licznik_klientow;
-// Muteks chroniący powyższe zasoby
-pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 // Zmienne dotycząca czasu korzystane przez funkcję main i wątek
 bool czas_przekroczony;
 time_t czas_zamkniecia;
@@ -253,8 +246,7 @@ int main()
 
     // Generowanie klientów w losowych odstępach czasu, dopóki nie zostanie przekroczona maksymalna liczba klientów lub czas
     srand(time(NULL)); // Punkt początkowy dla losowania
-    licznik_klientow = 0;
-    while (licznik_klientow <= maks_klientow && czas_przekroczony==false)
+    while (maks_klientow>0 && czas_przekroczony==false)
     {
         pid_t PID_klienta = fork();
         if(PID_klienta == -1)
@@ -270,9 +262,7 @@ int main()
         {
  
         }
-        pthread_mutex_lock(&klient_mutex);
-        licznik_klientow++;
-        pthread_mutex_unlock(&klient_mutex);
+        maks_klientow--;
         sleep(rand()%5);
     }
 
@@ -359,12 +349,6 @@ void SIGINT_handler(int sig)
         handle_error("shmdt okresowe_zamkniecie");
     }
 
-    // Usunięcie muteksu
-    if (pthread_mutex_destroy(&klient_mutex) != 0)
-    {
-        handle_error("zarzadca: pthread_mutex_destroy klient_mutex");
-    }
-
     // Komunikaty o zakończeniu pracy
     printf("%s[%s] Kompleks basenów jest zamknięty%s\n", COLOR1, timestamp(), RESET);
     printf("%s[%s] Zarządca kończy działanie%s\n", COLOR1, timestamp(), RESET);
@@ -423,18 +407,9 @@ void *sprzatanie_klientow()
 {
     while (czas_przekroczony == false)
     {
-        pid_t pid_klienta = waitpid(-1, NULL, WNOHANG);
-        if (pid_klienta > 0)
-        {
-            printf("Klient %d posprzątany\n", pid_klienta);
-            pthread_mutex_lock(&klient_mutex);
-            licznik_klientow--;
-            pthread_mutex_unlock(&klient_mutex);
-        }
-        else if (pid_klienta == 0)
-        {
-            sleep(1);
-        }
+        pid_t pid_klienta;
+        while(pid_klienta = waitpid(-1, NULL, WNOHANG)>0);
+        sleep(1);
     }
     return NULL;
 }

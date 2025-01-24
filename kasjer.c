@@ -64,6 +64,7 @@ int main()
        
         // Wysłanie wiadomości
         wyslany.mtype = odebrany.PID; // Odesłanie nan PID klienta
+
         if (msgsnd(ID_kolejki_kasjer, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
         {
             handle_error("kasjer: msgsnd ID_kolejki_kasjer");

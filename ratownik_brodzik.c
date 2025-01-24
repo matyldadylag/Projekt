@@ -105,12 +105,12 @@ int main()
 
 // Wątek przyjmujący klientów do brodzika
 void* przyjmowanie()
-{
-    // Deklaracja struktur wysyłanych i odbieranych od klienta
-    struct komunikat odebrany, wyslany;
-
+{  
     while(1) // Dopóki ratownik nie dostanie SIGINT od zarządcy
     {
+        // Deklaracja struktur wysyłanych i odbieranych od klienta
+        struct komunikat odebrany, wyslany;
+
         // Wyświetlenie aktualnego stanu basenu
         wyswietl_basen();
 
@@ -125,11 +125,13 @@ void* przyjmowanie()
         {
             // Klient dostaje pozwolenie i ID semafora, który ma obniżyć
             wyslany.pozwolenie = true;
-            wyslany.ID_semafora = ID_semafora_brodzik;
 
             // Dodanie klienta do tablicy i podwyższenie licznika klientów
             pthread_mutex_lock(&klient_mutex); // Blokada muteksu
-            klienci_w_basenie[licznik_klientow++] = odebrany.PID;
+            if(licznik_klientow<MAKS_BRODZIK)
+            {
+                klienci_w_basenie[licznik_klientow++] = odebrany.PID;
+            }
             pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
         }
         else
@@ -139,6 +141,7 @@ void* przyjmowanie()
 
         // Wysłanie wiadomości
         wyslany.mtype = odebrany.PID;
+
         if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
         {
             handle_error("ratownik_brodzik: msgsnd ID_kolejki_ratownik_przyjmuje");
@@ -193,7 +196,6 @@ void* wypuszczanie()
 
         // Wysłanie wiadomości
         wyslany.mtype = odebrany.PID;
-        wyslany.ID_semafora = ID_semafora_brodzik;
         if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
         {
             handle_error("ratownik_brodzik: msgsnd ID_kolejki_ratownik_wypuszcza");
@@ -207,12 +209,17 @@ void* wypuszczanie()
 // Obsługa SIGINT
 void SIGINT_handler(int sig)
 {
+    printf("Brodzik: przed zabiciem wątków\n");
+
     // Anulowanie wątków przyjmowania i wypuszczania klientów
-    pthread_kill(przyjmuje, SIGINT);
-    pthread_kill(wypuszcza, SIGINT);
+    pthread_cancel(przyjmuje);
+    pthread_cancel(wypuszcza);
+    pthread_detach(przyjmuje);
+    pthread_detach(wypuszcza);
 
     for (int i = 0; i < licznik_klientow; i++)
     {
+        printf("brodzik: zabijam klienta %d", klienci_w_basenie[i]);
         kill(klienci_w_basenie[i], SIGINT);
     }
 
