@@ -263,7 +263,7 @@ int main()
  
         }
         maks_klientow--;
-        sleep(rand()%5);
+        sleep(rand()%3+1);
     }
 
     // Wyświetlenie komunikatu o przekroczeniu maksymalnej liczby klientów
@@ -293,13 +293,18 @@ int main()
 // Obsługa sygnału SIGINT
 void SIGINT_handler(int sig)
 {
+    if(system("killall -s 2 klient")==-1)
+    {
+        handle_error("zarzadca: system killal klient");
+    }
+
     // Wysyła SIGINT do procesów kasjera i ratowników
     kill(PID_kasjera, SIGINT);
     kill(PID_ratownika_brodzik, SIGINT);
     kill(PID_ratownika_rekreacyjny, SIGINT);
     kill(PID_ratownika_olimpijski, SIGINT);
     
-    // Zarządca czeka na zakończenie pozostałych procesów
+    // Zarządca czeka na zakończenie wszystkich procesów
     printf("%s[%s] Zarządca czeka, aż wszyscy opuszczą kompleks basenów%s\n", COLOR1, timestamp(), RESET);    
     while (wait(NULL) > 0);
 

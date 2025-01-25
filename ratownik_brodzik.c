@@ -2,13 +2,12 @@
 
 // ID struktur korzystanych przez wątki
 int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik;
-
 // Zmienna czasu wykorzystywana przez wątki
 bool *okresowe_zamkniecie;
-
 // Wątki
 pthread_t przyjmuje, wypuszcza;
-
+// Zmienna z informacją, czy został wysłany sygnał SIGUSR1
+bool sygnal;
 // Tablica przechowująca PID klientów aktualnie na basenie
 pid_t klienci_w_basenie[MAKS_BRODZIK];
 // Licznik klientów aktualnie na basenie
@@ -18,8 +17,9 @@ pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void* przyjmowanie();
 void* wypuszczanie();
-
 void SIGINT_handler(int sig);
+void SIGUSR1_handler(int sig);
+void SIGUSR2_handler(int sig);
 void wyswietl_basen();
 
 int main()
@@ -87,6 +87,8 @@ int main()
     }
     *okresowe_zamkniecie = false;
 
+    sygnal = false;
+
     // Utworzenie wątków do przyjmowania i wypuszczania klientów
     if(pthread_create(&przyjmuje, NULL, przyjmowanie, NULL) != 0)
     {
@@ -106,11 +108,11 @@ int main()
 // Wątek przyjmujący klientów do brodzika
 void* przyjmowanie()
 {  
+    // Deklaracja struktur wysyłanych i odbieranych od klienta
+    struct komunikat odebrany, wyslany;
+
     while(1) // Dopóki ratownik nie dostanie SIGINT od zarządcy
     {
-        // Deklaracja struktur wysyłanych i odbieranych od klienta
-        struct komunikat odebrany, wyslany;
-
         // Wyświetlenie aktualnego stanu basenu
         wyswietl_basen();
 
@@ -121,17 +123,16 @@ void* przyjmowanie()
         }
 
         // Decyzja o przyjęciu klienta
-        if(odebrany.wiek <= 5 && *okresowe_zamkniecie == false) // Sprawdzenie, czy klient spełnia zasadę regulaminu i czy nie trwa okresowe zamknięcie
+        if(odebrany.wiek <= 5 && *okresowe_zamkniecie == false && sygnal == false) // Sprawdzenie, czy klient ma odpowiedni wiek, nie trwa okresowe zamknięcie lub nie został wysłany sygnał
         {
-            // Klient dostaje pozwolenie i ID semafora, który ma obniżyć
-            wyslany.pozwolenie = true;
-
-            // Dodanie klienta do tablicy i podwyższenie licznika klientów
+            semafor_p(ID_semafora_brodzik, 0); // Obniżenie semafora - jeśli nie ma aktualnie miejsca na basenie, czeka
+            wyslany.pozwolenie = true; // Klient dostaje pozwolenie
             pthread_mutex_lock(&klient_mutex); // Blokada muteksu
-            if(licznik_klientow<MAKS_BRODZIK)
+            if(licznik_klientow>=MAKS_BRODZIK)
             {
-                klienci_w_basenie[licznik_klientow++] = odebrany.PID;
+                handle_error("ratownik_brodzik: licznik_klientow poza zakresem");
             }
+            klienci_w_basenie[licznik_klientow++] = odebrany.PID; // Dodanie klienta do tablicy i podwyższenie licznika klientów
             pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
         }
         else
@@ -166,20 +167,19 @@ void* wypuszczanie()
     struct komunikat odebrany, wyslany;
 
     while(1) // Dopóki ratownik nie dostanie SIGINT od zarządcy
-    {        
-        // Wyświetlenie aktualnego stanu basenu
-        wyswietl_basen();
-
+    {
         // Odebranie wiadomości
         if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
         {
             handle_error("ratownik_brodzik: msgrcv ID_kolejki_ratownik_wypuszcza");
         }
 
+        semafor_v(ID_semafora_brodzik, 0);
+
         // Usunięcie klienta wychodzącego z tablicy
         pthread_mutex_lock(&klient_mutex); // Blokada muteksu
         int indeks_klienta_do_usuniecia;
-        for (int i = 0; i < licznik_klientow; i++) // Znaleznie indeksu usuwanego klienta
+        for (int i = 0; i < licznik_klientow; i++) // Znaleznie indeksu pod którym znajduje się PID usuwanego klienta
         {
             if (klienci_w_basenie[i] == odebrany.PID)
             {
@@ -209,19 +209,15 @@ void* wypuszczanie()
 // Obsługa SIGINT
 void SIGINT_handler(int sig)
 {
-    printf("Brodzik: przed zabiciem wątków\n");
-
     // Anulowanie wątków przyjmowania i wypuszczania klientów
     pthread_cancel(przyjmuje);
     pthread_cancel(wypuszcza);
-    pthread_detach(przyjmuje);
-    pthread_detach(wypuszcza);
 
-    for (int i = 0; i < licznik_klientow; i++)
+    /*for (int i = 0; i < licznik_klientow; i++)
     {
-        printf("brodzik: zabijam klienta %d", klienci_w_basenie[i]);
+        printf("brodzik: zabijam klienta %d\n", klienci_w_basenie[i]);
         kill(klienci_w_basenie[i], SIGINT);
-    }
+    }*/
 
     // Usunięcie muteksu
     if (pthread_mutex_destroy(&klient_mutex) != 0)

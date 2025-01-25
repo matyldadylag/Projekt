@@ -1,6 +1,7 @@
 #include "utils.c"
 
 time_t czas_wyjscia;
+bool plywa;
 
 void SIGINT_handler(int sig);
 void SIGUSR1_handler(int sig);
@@ -34,14 +35,10 @@ int main()
         handle_error("klient: signal SIGINT_handler");
     }
 
-    // Obsługa sygnałów SIGUSR1 i SIGUSR2
+    // Obsługa sygnału SIGUSR1
     if (signal(SIGUSR1, SIGUSR1_handler) == SIG_ERR)
     {
         handle_error("klient: signal SIGUSR1_handler");
-    }
-    if (signal(SIGUSR2, SIGUSR2_handler) == SIG_ERR)
-    {
-        handle_error("klient: signal SIGUSR2_handler");
     }
 
     // Utworzenie kolejki komunikatów dla kasjera
@@ -126,7 +123,7 @@ int main()
         wyslany.wiek_opiekuna = klient.wiek_opiekuna;
 
         // Zmienna śledząca, czy klient znajduje się aktualnie w basenie
-        bool plywa = false;
+        plywa = false;
 
         while(time(NULL)<czas_wyjscia)
         {
