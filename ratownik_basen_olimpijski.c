@@ -1,15 +1,13 @@
 #include "utils.c"
 
-// Funkcje dla wątków
-void* przyjmowanie();
-void* wypuszczanie();
-
-// Zdefiniowane wyżej, aby być w stanie usunąć struktury asynchronicznie w przypadku SIGINT
-int ID_kolejki_ratownik_przyjmuje;
-int ID_kolejki_ratownik_wypuszcza;
-int ID_semafora_olimpijski;
+// ID struktur korzystanych przez wątki
+int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_olimpijski;
+// Zmienna określająca czy trwa okresowe zamknięcie, pobierana z pamięci dzielonej
+bool *okresowe_zamkniecie;
+// Wątki
 pthread_t przyjmuje, wypuszcza;
-
+// Zmienna z informacją, czy został wysłany sygnał SIGUSR1
+bool sygnal;
 // Tablica przechowująca PID klientów aktualnie na basenie
 pid_t klienci_w_basenie[MAKS_OLIMPIJSKI];
 // Licznik klientów aktualnie na basenie
@@ -17,98 +15,115 @@ int licznik_klientow = 0;
 // Muteks chroniący powyższe zasoby
 pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Obsługa SIGINT
-void SIGINT_handler(int sig)
-{
-    // Anulowanie wątków przyjmowania i wypuszczania klientów
-    pthread_kill(przyjmuje, SIGINT);
-    pthread_kill(wypuszcza, SIGINT);
-
-    // Wysłanie SIGINT do klientów z tablicy ratownika
-    for (int i = 0; i < licznik_klientow; i++)
-    {
-        printf("brodzik: zabijam klienta %d", klienci_w_basenie[i]);
-        kill(klienci_w_basenie[i], SIGINT);
-    }
-
-    // Komunikat o zakończeniu działania ratownika basenu olimpijskiego
-    printf("%s[%s] Ratownik basenu olimpijskiego kończy działanie%s\n", COLOR6, timestamp(), RESET);
-
-    exit(0);
-}
-
-void print_klienci_w_basenie()
-{
-    printf("%s[%s] Basen olimpijski: [", COLOR6, timestamp());
-    for (int i = 0; i < licznik_klientow; i++)
-    {
-        printf("%d", klienci_w_basenie[i]);
-        if (i < licznik_klientow - 1)
-        {
-            printf(", ");
-        }
-    }
-    printf("]%s\n", RESET);
-}
+void* przyjmowanie();
+void* wypuszczanie();
+void SIGINT_handler(int sig);
+void SIGUSR1_handler(int sig);
+void SIGUSR2_handler(int sig);
+void wyswietl_basen();
 
 int main()
 {
-    // Obsługa SIGINT
-    if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
-    {
-        handle_error("signal SIGINT_handler");
-    }
-    
     // Komunikat o uruchomieniu ratownika brodzika
     printf("%s[%s] Ratownik basenu olimpijskiego uruchomiony%s\n", COLOR6, timestamp(), RESET);
 
-    // Utworzenie kolejki do przyjmowania klientów
+    // Obsługa SIGINT
+    if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
+    {
+        handle_error("ratownik_olimpijski: signal SIGINT_handler");
+    }
+
+    /*// Obsługa sygnału SIGUSR1
+    if (signal(SIGUSR1, SIGUSR1_handler) == SIG_ERR)
+    {
+        handle_error("ratownik_olimpijski: signal SIGUSR1_handler");
+    }
+
+    // Obsługa sygnału SIGUSR1
+    if (signal(SIGUSR2, SIGUSR2_handler) == SIG_ERR)
+    {
+        handle_error("ratownik_olimpijski: signal SIGUSR2_handler");
+    }*/
+    
+    // Uzyskanie dostępu do kolejki komunikatów dla ratowników - przyjmowanie klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
     if(klucz_kolejki_ratownik_przyjmuje==-1)
     {
-        handle_error("ftok klucz_kolejki_ratownik_przyjmuje");
+        handle_error("ratownik_rekreacyjny: ftok klucz_kolejki_ratownik_przyjmuje");
     }
     ID_kolejki_ratownik_przyjmuje = msgget(klucz_kolejki_ratownik_przyjmuje, IPC_CREAT | 0600);
     if(ID_kolejki_ratownik_przyjmuje==-1)
     {
-        handle_error("msgget ID_kolejki_ratownik_przyjmuje");
+        handle_error("ratownik_rekreacyjny: msgget ID_kolejki_ratownik_przyjmuje");
     }
 
-    // Utworzenie kolejki do wypuszczania klientów
+    // Uzyskanie dostępu do kolejki komunikatów dla ratowników - wypuszczanie klientów
     key_t klucz_kolejki_ratownik_wypuszcza = ftok(".", 4824);
     if(klucz_kolejki_ratownik_wypuszcza==-1)
     {
-        handle_error("ftok klucz_kolejki_ratownik_wypuszcza");
+        handle_error("ratownik_rekreacyjny: ftok klucz_kolejki_ratownik_wypuszcza");
     }
     ID_kolejki_ratownik_wypuszcza = msgget(klucz_kolejki_ratownik_wypuszcza, IPC_CREAT | 0600);
     if(ID_kolejki_ratownik_wypuszcza==-1)
     {
-        handle_error("msgget ID_kolejki_ratownik_wypuszcza");
+        handle_error("ratownik_rekreacyjny: msgget ID_kolejki_ratownik_wypuszcza");
     }
 
-    // Utworzenie semafora
+    // Utworzenie semafora dla basenu olimpijskiego
     key_t klucz_semafora_olimpijski = ftok(".", 9447);
     if(klucz_semafora_olimpijski==-1)
     {
-        handle_error("ftok klucz_semafora");
+        handle_error("ratownik_rekreacyjny: ftok klucz_semafora_olimpijski");
     }
     ID_semafora_olimpijski = semget(klucz_semafora_olimpijski, 1, 0600|IPC_CREAT);
     if(ID_semafora_olimpijski==-1)
     {
-        handle_error("semget ID_semafora");
+        handle_error("ratownik_rekreacyjny: semget ID_semafora_olimpijski");
     }
     if(semctl(ID_semafora_olimpijski, 0, SETVAL, MAKS_OLIMPIJSKI)==-1)
     {
-        handle_error("semctl ID_semafora");
+        handle_error("ratownik_rekreacyjny: semctl ID_semafora_olimpijski");
     }
 
+    // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
+    key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
+    if(klucz_pamieci_okresowe_zamkniecie==-1)
+    {
+        handle_error("ratownik_rekreacyjny: ftok klucz_pamieci_okresowe_zamkniecie");
+    }
+    int ID_pamieci_okresowe_zamkniecie = shmget(klucz_pamieci_okresowe_zamkniecie, sizeof(bool), 0600 | IPC_CREAT);
+    if(ID_pamieci_okresowe_zamkniecie==-1)
+    {
+        handle_error("ratownik_rekreacyjny: shmget ID_pamieci_okresowe_zamkniecie");
+    }
+    okresowe_zamkniecie = (bool*)shmat(ID_pamieci_okresowe_zamkniecie, NULL, 0);
+    if (okresowe_zamkniecie == (void*)-1)
+    {
+        handle_error("ratownik_rekreacyjny: shmat okresowe_zamkniecie");
+    }
+    *okresowe_zamkniecie = false;
+
+    sygnal = false;
 
     // Utworzenie wątków do przyjmowania i wypuszczania klientów
-    pthread_create(&przyjmuje, NULL, przyjmowanie, NULL);
-    pthread_create(&wypuszcza, NULL, wypuszczanie, NULL);
+    if(pthread_create(&przyjmuje, NULL, przyjmowanie, NULL) != 0)
+    {
+        handle_error("ratownik_rekreacyjny: pthread_create przyjmuje");
+    }
+    if(pthread_create(&wypuszcza, NULL, wypuszczanie, NULL) != 0)
+    {
+        handle_error("ratownik_rekreacyjny: pthread_create wypuszcza");
+    }
 
-    pthread_join(przyjmuje, NULL);
-    pthread_join(wypuszcza, NULL);
+    // Dołączenie wątków do przyjmowania i wypuszczania klientów
+    if(pthread_join(przyjmuje, NULL) != 0)
+    {
+        handle_error("ratownik_rekreacyjny: pthread_join przyjmuje");
+    }
+    if(pthread_join(wypuszcza, NULL) != 0)
+    {
+        handle_error("ratownik_rekreacyjny: pthread_join wypuszczanie");
+    }
 
     return 0;
 }
@@ -120,72 +135,72 @@ void* przyjmowanie()
 
     while(1)
     {
-        print_klienci_w_basenie();
-
+        // Odebranie wiadomości
         if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0)==-1)
         {
-            handle_error("msgrcv ratownik olimpijski przyjmuje");
+            handle_error("ratownik_olimpijski: msgrcv ID_kolejki_ratownik_przyjmuje");
         }
         
-        if(odebrany.wiek>=18)
+        // Decyzja o przyjęciu klienta
+        if(odebrany.wiek>=18 && *okresowe_zamkniecie == false && sygnal == false) // Sprawdzenie, czy klient ma odpowiedni wiek, nie trwa okresowe zamknięcie lub nie został wysłany sygnał
         {
-            // Dodanie PID klienta do tablicy
-            // Blokada przez muteks
-            pthread_mutex_lock(&klient_mutex);
-            klienci_w_basenie[licznik_klientow++] = odebrany.PID;
-            pthread_mutex_unlock(&klient_mutex);
-
-            // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-            wyslany.mtype = odebrany.PID;
-            wyslany.PID = odebrany.PID;
-            wyslany.pozwolenie = true;
-
-            // Wysłanie wiadomości
-            if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+            semafor_p(ID_semafora_olimpijski, 0); // Obniżenie semafora - jeśli nie ma aktualnie miejsca na basenie, czeka
+            wyslany.pozwolenie = true; // Klient dostaje pozwolenie
+            pthread_mutex_lock(&klient_mutex); // Blokada muteksu
+            if(licznik_klientow>=MAKS_OLIMPIJSKI)
             {
-                handle_error("msgsnd ratownik olimpijski przyjmuje");
+                handle_error("ratownik_rekreacyjny: licznik_klientow poza zakresem");
             }
+            klienci_w_basenie[licznik_klientow++] = odebrany.PID; // Dodanie klienta do tablicy i podwyższenie licznika klientów
+            pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
+        }
+        else
+        {
+            wyslany.pozwolenie = false;
+        }
 
+        // Wysłanie wiadomości
+        wyslany.mtype = odebrany.PID;
+        if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+        {
+            handle_error("ratownik_rekreacyjny: msgsnd ID_kolejki_ratownik_przyjmuje");
+        }
+
+        // Komunikat o przyjęciu lub nie klienta
+        if(wyslany.pozwolenie == true)
+        {
             printf("%s[%s] Ratownik olimpijski przyjął klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
         }
         else
         {
-            // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-            wyslany.mtype = odebrany.PID;
-            wyslany.PID = odebrany.PID;
-            wyslany.pozwolenie = false;
-
-            // Wysłanie wiadomości
-            if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
-            {
-                handle_error("msgsnd olimpijski ratownik przyjmuje");  
-            }
-
             printf("%s[%s] Ratownik olimpijski nie przyjął klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
         }
+
+        // Wyświetlenie aktualnego stanu basenu
+        wyswietl_basen();
     }
 }
 
+// Wątek wypuszczający klientów z brodzika
 void* wypuszczanie()
 {
+    // Deklaracja struktur wysyłanych i odbieranych od klienta
     struct komunikat odebrany, wyslany;
 
-    while(1)
+    while(1) // Dopóki ratownik nie dostanie SIGINT od zarządcy
     {
-        print_klienci_w_basenie();
-
+        // Odebranie wiadomości
         if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_OLIMPIJSKI, 0)==-1)
         {
-            handle_error("msgrcv ratownik olimpijski wypuszcza");
+            handle_error("ratownik_olimpijski: msgrcv ID_kolejki_ratownik_wypuszcza");
         }
         
-        // Usuwanie PID klienta z tablicy
-        // Blokada przez muteks
-        pthread_mutex_lock(&klient_mutex);
+        semafor_v(ID_semafora_olimpijski, 0);
 
-        // Znalezienie indeksu przy którym znajduje się PID klienta, który wychodzi
+        // Usunięcie klienta wychodzącego z tablicy
+        pthread_mutex_lock(&klient_mutex); // Blokada muteksu
         int indeks_klienta_do_usuniecia;
-        for (int i = 0; i < licznik_klientow; i++)
+        for (int i = 0; i < licznik_klientow; i++) // Znaleznie indeksu pod którym znajduje się PID usuwanego klienta
         {
             if (klienci_w_basenie[i] == odebrany.PID)
             {
@@ -193,26 +208,57 @@ void* wypuszczanie()
                 break;
             }
         }
-
-        // Przesuniecie pozostałych PID w tablicy
-        for (int i = indeks_klienta_do_usuniecia; i < licznik_klientow - 1; i++)
+        for (int i = indeks_klienta_do_usuniecia; i < licznik_klientow - 1; i++) // Przesunięcie pozostałych klientów w tablicy
         {
             klienci_w_basenie[i] = klienci_w_basenie[i + 1];
         }
-        licznik_klientow--;
-        
-        pthread_mutex_unlock(&klient_mutex);
-
-        // Ratownik zmienia wartości, aby wiadomość dotarła na PID klienta
-        wyslany.mtype = odebrany.PID;
-        wyslany.PID = odebrany.PID;
+        licznik_klientow--; // Obniżenie licznika klientów
+        pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
 
         // Wysłanie wiadomości
+        wyslany.mtype = odebrany.PID;
         if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
         {
             handle_error("msgsnd ID_kolejki_ratownik_wypuszcza");
         }
 
+        // Komunikat o wypuszczeniu klienta
         printf("%s[%s] Ratownik basenu olimpijskiego wypuścił klienta %d%s\n", COLOR6, timestamp(), odebrany.PID, RESET);
+
+        // Wyświetlenie aktualnego stanu basenu
+        wyswietl_basen();
     }
+}
+
+// Obsługa SIGINT
+void SIGINT_handler(int sig)
+{
+    // Anulowanie wątków przyjmowania i wypuszczania klientów
+    pthread_cancel(przyjmuje);
+    pthread_cancel(wypuszcza);
+
+    // Usunięcie muteksu
+    if (pthread_mutex_destroy(&klient_mutex) != 0)
+    {
+        handle_error("ratownik_olimpijski: pthread_mutex_destroy klient_mutex");
+    }
+
+    // Komunikat o zakończeniu działania ratownika basenu olimpijskiego
+    printf("%s[%s] Ratownik basenu olimpijskiego kończy działanie%s\n", COLOR6, timestamp(), RESET);
+
+    exit(0);
+}
+
+void wyswietl_basen()
+{
+    printf("%s[%s] Basen olimpijski: [", COLOR6, timestamp());
+    for (int i = 0; i < licznik_klientow; i++)
+    {
+        printf("%d", klienci_w_basenie[i]);
+        if (i < licznik_klientow - 1)
+        {
+            printf(", ");
+        }
+    }
+    printf("]%s\n", RESET);
 }

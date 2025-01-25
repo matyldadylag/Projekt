@@ -2,7 +2,7 @@
 
 // ID struktur korzystanych przez wątki
 int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik;
-// Zmienna czasu wykorzystywana przez wątki
+// Zmienna określająca czy trwa okresowe zamknięcie, pobierana z pamięci dzielonej
 bool *okresowe_zamkniecie;
 // Wątki
 pthread_t przyjmuje, wypuszcza;
@@ -28,10 +28,22 @@ int main()
     printf("%s[%s] Ratownik brodzika uruchomiony%s\n", COLOR4, timestamp(), RESET);
 
     // Obsługa SIGINT
-    if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
+    if(signal(SIGINT, SIGINT_handler) == SIG_ERR)
     {
         handle_error("ratownik_brodzik: signal SIGINT_handler");
     }
+
+    /*// Obsługa sygnału SIGUSR1
+    if (signal(SIGUSR1, SIGUSR1_handler) == SIG_ERR)
+    {
+        handle_error("ratownik_brodzik: signal SIGUSR1_handler");
+    }
+
+    // Obsługa sygnału SIGUSR1
+    if (signal(SIGUSR2, SIGUSR2_handler) == SIG_ERR)
+    {
+        handle_error("ratownik_brodzik: signal SIGUSR2_handler");
+    }*/
 
     // Uzyskanie dostępu do kolejki komunikatów dla ratowników - przyjmowanie klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
@@ -99,8 +111,15 @@ int main()
         handle_error("ratownik_brodzik: pthread_create wypuszcza");
     }
 
-    pthread_join(przyjmuje, NULL);
-    pthread_join(wypuszcza, NULL);
+    // Dołączenie wątków do przyjmowania i wypuszczania klientów
+    if(pthread_join(przyjmuje, NULL) != 0)
+    {
+        handle_error("ratownik_brodzik: pthread_join przyjmuje");
+    }
+    if(pthread_join(wypuszcza, NULL) != 0)
+    {
+        handle_error("ratownik_brodzik: pthread_join wypuszczanie");
+    }
 
     return 0;
 }
@@ -108,14 +127,11 @@ int main()
 // Wątek przyjmujący klientów do brodzika
 void* przyjmowanie()
 {  
-    // Deklaracja struktur wysyłanych i odbieranych od klienta
+    // Deklaracja struktur do odbierania i wysyłania wiadomości od klientów
     struct komunikat odebrany, wyslany;
 
-    while(1) // Dopóki ratownik nie dostanie SIGINT od zarządcy
+    while(1)
     {
-        // Wyświetlenie aktualnego stanu basenu
-        wyswietl_basen();
-
         // Odebranie wiadomości
         if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
         {
@@ -142,7 +158,6 @@ void* przyjmowanie()
 
         // Wysłanie wiadomości
         wyslany.mtype = odebrany.PID;
-
         if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0) == -1)
         {
             handle_error("ratownik_brodzik: msgsnd ID_kolejki_ratownik_przyjmuje");
@@ -157,6 +172,9 @@ void* przyjmowanie()
         {
             printf("%s[%s] Ratownik brodzika nie przyjął klienta %d%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
         }
+
+        // Wyświetlenie aktualnego stanu basenu
+        wyswietl_basen();
     }
 }
 
@@ -203,6 +221,9 @@ void* wypuszczanie()
 
         // Komunikat o wypuszczeniu klienta
         printf("%s[%s] Ratownik brodzika wypuścił klienta %d z opiekunem%s\n", COLOR4, timestamp(), odebrany.PID, RESET);
+        
+        // Wyświetlenie aktualnego stanu basenu
+        wyswietl_basen();
     }
 }
 
@@ -212,12 +233,6 @@ void SIGINT_handler(int sig)
     // Anulowanie wątków przyjmowania i wypuszczania klientów
     pthread_cancel(przyjmuje);
     pthread_cancel(wypuszcza);
-
-    /*for (int i = 0; i < licznik_klientow; i++)
-    {
-        printf("brodzik: zabijam klienta %d\n", klienci_w_basenie[i]);
-        kill(klienci_w_basenie[i], SIGINT);
-    }*/
 
     // Usunięcie muteksu
     if (pthread_mutex_destroy(&klient_mutex) != 0)

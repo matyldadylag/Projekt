@@ -22,9 +22,9 @@
 #define CZAS_PRZERWY_PROCENT 0.25
 
 // Semafory basenów - maksymalna liczba osób w danym basenie
-#define MAKS_OLIMPIJSKI 5
-#define MAKS_REKREACYJNY 5
-#define MAKS_BRODZIK 5
+#define MAKS_OLIMPIJSKI 30
+#define MAKS_REKREACYJNY 20
+#define MAKS_BRODZIK 10
 
 // Kolejki komunikatów - adresy dla kolejek komunikatów
 #define KASJER_VIP 1 // Musi mieć mniejszą wartość niż KASJER
@@ -84,33 +84,6 @@ static void semafor_p(int semafor_id, int numer_semafora)
     if(semop(semafor_id, &bufor_sem, 1)==-1)
     {
         handle_error("semop P");
-    }
-}
-
-// Funkcje operacji semaforowych dla klienta z dzieckiem - zwiększają/obniżają wartość semaforów o 2
-static void semafor_v_2(int semafor_id, int numer_semafora)
-{
-    struct sembuf bufor_sem;
-    bufor_sem.sem_num = numer_semafora;
-    bufor_sem.sem_op = 2;
-    bufor_sem.sem_flg = 0;
-
-    if(semop(semafor_id, &bufor_sem, 1)==-1)
-    {
-        handle_error("semop V 2");
-    }
-}
-
-static void semafor_p_2(int semafor_id, int numer_semafora)
-{
-    struct sembuf bufor_sem;
-    bufor_sem.sem_num = numer_semafora;
-    bufor_sem.sem_op = -2;
-    bufor_sem.sem_flg = 0;
-
-    if (semop(semafor_id, &bufor_sem, 1) == -1)
-    {
-        handle_error("semop P 2");
     }
 }
 
