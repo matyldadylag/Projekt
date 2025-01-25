@@ -4,7 +4,6 @@ time_t czas_wyjscia;
 
 void SIGINT_handler(int sig);
 void SIGUSR1_handler(int sig);
-void SIGUSR2_handler(int sig);
 
 int main()
 {
@@ -14,28 +13,35 @@ int main()
     // Zainicjowanie danych klienta
     struct dane_klienta klient;
     klient.PID = getpid();
-    //klient.wiek = (rand() % 70) + 1; // Losowo generuje wiek od 1 do 70 lat
-    klient.wiek = 6;
+    klient.wiek = (rand() % 70) + 1; // Losowo generuje wiek od 1 do 70 lat
     klient.wiek_opiekuna = (klient.wiek <= 10) ? ((rand() % 53) + 19) : 0; // W wypadku, gdy klient.wiek <= 10 generuje się wiek opiekuna (między 18 a 70 lat)
     klient.VIP = (rand() % 5 == 0); // Klient ma szansę 1:5 na bycie VIP
     klient.czepek = (rand() % 5 == 0); // Klient ma szansę 1:5 na założenie czepka
-    //klient.wybor_basenu = 11 + rand() % 3; // Wybór basenu: 11 - brodzik, 12 - basen rekreacyjny, 13 - basen olimpijski
-    klient.wybor_basenu = 11;
 
     // Komunikat o uruchomieniu klienta
     if(klient.wiek_opiekuna == 0)
     {
-        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. VIP: %d. Czepek: %d. Preferowany basen: %d%s\n", COLOR3, timestamp(), klient.PID, klient.wiek, klient.VIP, klient.czepek, klient.wybor_basenu, RESET);
+        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. VIP: %d. Czepek: %d%s\n", COLOR3, timestamp(), klient.PID, klient.wiek, klient.VIP, klient.czepek, RESET);
     }
     else
     {
-        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. Wiek opiekuna: %d. VIP: %d. Czepek: %d. Preferowany basen: %d%s\n", COLOR3, timestamp(), klient.PID, klient.wiek, klient.wiek_opiekuna, klient.VIP, klient.czepek, klient.wybor_basenu, RESET);
+        printf("%s[%s] Klient %d uruchomiony. Wiek: %d. Wiek opiekuna: %d. VIP: %d. Czepek: %d%s\n", COLOR3, timestamp(), klient.PID, klient.wiek, klient.wiek_opiekuna, klient.VIP, klient.czepek, RESET);
     }
 
     // Obsługa sygnału SIGINT
     if (signal(SIGINT, SIGINT_handler) == SIG_ERR)
     {
         handle_error("klient: signal SIGINT_handler");
+    }
+
+    // Obsługa sygnałów SIGUSR1 i SIGUSR2
+    if (signal(SIGUSR1, SIGUSR1_handler) == SIG_ERR)
+    {
+        handle_error("klient: signal SIGUSR1_handler");
+    }
+    if (signal(SIGUSR2, SIGUSR2_handler) == SIG_ERR)
+    {
+        handle_error("klient: signal SIGUSR2_handler");
     }
 
     // Utworzenie kolejki komunikatów dla kasjera
@@ -115,7 +121,6 @@ int main()
 
         // Komunikacja z ratownikiem
         // Inicjalizacja struktury wyslany
-        wyslany.mtype = klient.wybor_basenu;
         wyslany.PID = klient.PID;
         wyslany.wiek = klient.wiek;
         wyslany.wiek_opiekuna = klient.wiek_opiekuna;
@@ -127,7 +132,11 @@ int main()
         {
             if(plywa == false)
             {
+                // Losowe wybranie basenu
+                klient.wybor_basenu = 11 + rand() % 3;
+
                 // Wysłanie wiadomości
+                wyslany.mtype = klient.wybor_basenu;
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
                 {
                     handle_error("klient: msgsnd ID_kolejki_ratownik_przyjmuje");
@@ -163,17 +172,20 @@ int main()
             }
         }
 
-        // Komunikacja z ratownikiem - prośba o wyjście
-        // Wysłanie wiadomości z prośbą o wyjście
-        if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+        // Komunikacja z ratownikiem - prośba o wyjście, jeśli klient w momencie wyjścia z pętli był w jakimś basenie
+        if(plywa == true)
         {
-            handle_error("klient: msgsnd ID_kolejki_ratownik_wypuszcza");
-        }
+            // Wysłanie wiadomości z prośbą o wyjście
+            if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
+            {
+                handle_error("klient: msgsnd ID_kolejki_ratownik_wypuszcza");
+            }
 
-        // Odebranie odpowiedzi zwrotnej
-        if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(struct komunikat) - sizeof(long), wyslany.PID, 0)==-1)
-        {
-            handle_error("klient: msgrcv ID_kolejki_ratownik_wypuszcza");
+            // Odebranie odpowiedzi zwrotnej
+            if(msgrcv(ID_kolejki_ratownik_wypuszcza, &odebrany, sizeof(struct komunikat) - sizeof(long), wyslany.PID, 0)==-1)
+            {
+                handle_error("klient: msgrcv ID_kolejki_ratownik_wypuszcza");
+            }
         }
     }
     
@@ -193,10 +205,5 @@ void SIGINT_handler(int sig)
 
 void SIGUSR1_handler(int sig)
 {
-
-}
-
-void SIGUSR2_handler(int sig)
-{
-
+    plywa = false;
 }
