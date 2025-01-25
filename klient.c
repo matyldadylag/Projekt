@@ -15,7 +15,7 @@ int main()
     struct dane_klienta klient;
     klient.PID = getpid();
     //klient.wiek = (rand() % 70) + 1; // Losowo generuje wiek od 1 do 70 lat
-    klient.wiek = 3;
+    klient.wiek = 6;
     klient.wiek_opiekuna = (klient.wiek <= 10) ? ((rand() % 53) + 19) : 0; // W wypadku, gdy klient.wiek <= 10 generuje się wiek opiekuna (między 18 a 70 lat)
     klient.VIP = (rand() % 5 == 0); // Klient ma szansę 1:5 na bycie VIP
     klient.czepek = (rand() % 5 == 0); // Klient ma szansę 1:5 na założenie czepka
@@ -143,29 +143,27 @@ int main()
                 {
                     plywa = true;
                 }
-                else
+                else // Jeśli nie, czeka chwilę, a następnie próbuje ponownie
                 {
-                    sleep(10);
+                    int przerwa=rand()%BILET; // Losuje jak długo ma trwać przerwa
+                    while(przerwa>0) // Dopóki nie minie czas przerwy idzie spać na sekundę, chyba że w między czasie nadejdzie czas wyjścia
+                    {
+                        if(time(NULL)>=czas_wyjscia)
+                        {
+                            break;
+                        }
+                        sleep(1);
+                        przerwa--;
+                    }
                 }
             }
-            else
-            {
-                sleep(10);
-            }
-        }
-
-        for(int i = 0; i < 1; i++)
-        {
-            if(time(NULL) < czas_wyjscia)
+            else // Jeśli klient już pływa, kontynuje swoją aktywność
             {
                 sleep(1);
             }
-            else
-            {
-                break;
-            }
         }
 
+        // Komunikacja z ratownikiem - prośba o wyjście
         // Wysłanie wiadomości z prośbą o wyjście
         if(msgsnd(ID_kolejki_ratownik_wypuszcza, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
         {
@@ -191,4 +189,14 @@ void SIGINT_handler(int sig)
     printf("%s[%s] Klient %d kończy działanie%s\n", COLOR3, timestamp(), getpid(), RESET);
 
     exit(0);
+}
+
+void SIGUSR1_handler(int sig)
+{
+
+}
+
+void SIGUSR2_handler(int sig)
+{
+
 }

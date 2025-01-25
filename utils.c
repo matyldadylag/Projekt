@@ -17,9 +17,9 @@
 #include <errno.h>
 
 // Długość biletu czasowego - maksymalny czas, jaki proces może spędzić na basenie (w sekundach)
-#define BILET 5
+#define BILET 10
 // Czas przerwy jest wyliczany procentowo na podstawie tego, jak długo basen jest otwarty
-#define CZAS_PRZERWY_PROCENT 0.3
+#define CZAS_PRZERWY_PROCENT 0.25
 
 // Semafory basenów - maksymalna liczba osób w danym basenie
 #define MAKS_OLIMPIJSKI 5
