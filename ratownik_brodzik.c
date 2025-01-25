@@ -6,6 +6,8 @@ int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_br
 bool *okresowe_zamkniecie;
 // Wątki
 pthread_t przyjmuje, wypuszcza;
+// Flaga sprawdzające, czy wydarzenie zostało już obsłużone
+bool zamkniecie_handled = false;
 // Zmienna z informacją, czy został wysłany sygnał SIGUSR1
 bool sygnal;
 // Tablica przechowująca PID klientów aktualnie na basenie
@@ -17,6 +19,7 @@ pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void* przyjmowanie();
 void* wypuszczanie();
+void okresowe_zamkniecie_handler();
 void SIGINT_handler(int sig);
 void SIGUSR1_handler(int sig);
 void SIGUSR2_handler(int sig);
@@ -97,7 +100,6 @@ int main()
     {
         handle_error("ratownik_brodzik: shmat okresowe_zamkniecie");
     }
-    *okresowe_zamkniecie = false;
 
     sygnal = false;
 
@@ -132,6 +134,12 @@ void* przyjmowanie()
 
     while(1)
     {
+        // Jeśli trwa okresowe zamknięcie, wywołuje obsługującą funkcję
+        if(*okresowe_zamkniecie)
+        {
+            okresowe_zamkniecie_handler();
+        }
+
         // Odebranie wiadomości
         if(msgrcv(ID_kolejki_ratownik_przyjmuje, &odebrany, sizeof(odebrany) - sizeof(long), RATOWNIK_BRODZIK, 0) == -1)
         {
@@ -225,6 +233,24 @@ void* wypuszczanie()
         // Wyświetlenie aktualnego stanu basenu
         wyswietl_basen();
     }
+}
+
+// Obsługa okresowego zamknięcia
+void okresowe_zamkniecie_handler()
+{
+    pthread_mutex_lock(&klient_mutex); // Blokada muteksu
+    if (!zamkniecie_handled) // Sprawdza, czy okresowe zamknięcie nie zostało już obsłużone
+    {
+        for (int i = 0; i < licznik_klientow; i++) // Usuwa wszystkie PID w tablicy
+        {
+            klienci_w_basenie[i] = 0;
+        }
+        licznik_klientow = 0; // Resetuje licznik klientów
+        semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        zamkniecie_handled = true; // Oznacza okresowe zamknięcie jako obsłużone
+        printf("%s[%s] Ratownik brodzika wyprosił wszystkich klientów%s\n", COLOR4, timestamp(), RESET);
+    }
+    pthread_mutex_unlock(&klient_mutex);
 }
 
 // Obsługa SIGINT

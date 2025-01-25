@@ -1,7 +1,10 @@
 #include "utils.c"
 
 time_t czas_wyjscia;
+// Flaga, czy klient pływa
 bool plywa;
+// Flaga, czy trwa okresowe zamknięcie, pobierana z pamięci dzielonej
+bool *okresowe_zamkniecie;
 
 void SIGINT_handler(int sig);
 void SIGUSR1_handler(int sig);
@@ -77,6 +80,23 @@ int main()
         handle_error("klient: msgget ID_kolejki_ratownik_wypuszcza");
     }
 
+    // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
+    key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
+    if(klucz_pamieci_okresowe_zamkniecie==-1)
+    {
+        handle_error("klient: ftok klucz_pamieci_okresowe_zamkniecie");
+    }
+    int ID_pamieci_okresowe_zamkniecie = shmget(klucz_pamieci_okresowe_zamkniecie, sizeof(bool), 0600 | IPC_CREAT);
+    if(ID_pamieci_okresowe_zamkniecie==-1)
+    {
+        handle_error("klient: shmget ID_pamieci_okresowe_zamkniecie");
+    }
+    okresowe_zamkniecie = (bool*)shmat(ID_pamieci_okresowe_zamkniecie, NULL, 0);
+    if (okresowe_zamkniecie == (void*)-1)
+    {
+        handle_error("klient: shmat okresowe_zamkniecie");
+    }
+
     // Deklaracja struktur do wysyłania i odbierania wiadomości od kasjera i ratownika
     struct komunikat wyslany, odebrany;
 
@@ -127,6 +147,10 @@ int main()
 
         while(time(NULL)<czas_wyjscia)
         {
+            if(*okresowe_zamkniecie==true)
+            {
+                plywa = false;
+            }
             if(plywa == false)
             {
                 // Losowe wybranie basenu

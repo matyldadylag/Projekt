@@ -126,8 +126,6 @@ int main()
     {
         handle_error("zarzadca: shmat okresowe_zamkniecie");
     }
-    // Inicjalizacja zmiennej jako "false" - nie ma aktualnie okresowego zamkniecia
-    *okresowe_zamkniecie = false;
 
     // Sprawdzenie limitu wywołanych procesów przez łącze komunikacyjne
     FILE *fp = popen("bash -c 'ulimit -u'", "r"); // Otwarcie łącza
@@ -263,7 +261,7 @@ int main()
  
         }
         maks_klientow--;
-        sleep(rand()%3+1);
+        sleep(1);
     }
 
     // Wyświetlenie komunikatu o przekroczeniu maksymalnej liczby klientów
