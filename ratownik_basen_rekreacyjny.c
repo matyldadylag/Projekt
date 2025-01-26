@@ -149,6 +149,8 @@ void* przyjmowanie()
         if(*okresowe_zamkniecie)
         {
             okresowe_zamkniecie_handler();
+            sleep(1);
+            continue;
         }
 
         // Odebranie wiadomości
@@ -168,8 +170,12 @@ void* przyjmowanie()
         }
 
         // Decyzja o przyjęciu klienta
-        if(temp <= 40 && *okresowe_zamkniecie == false && sygnal == false) // Sprawdzenie, czy nie trwa okresowe zamknięcie lub nie został wysłany sygnał
+        if(temp <= 40 && *okresowe_zamkniecie == false &&  sygnal == false) // Sprawdzenie, czy nie trwa okresowe zamknięcie lub nie został wysłany sygnał
         {
+            if(*okresowe_zamkniecie==true)
+            {
+                continue;
+            }
             semafor_p(ID_semafora_rekreacyjny, 0); // Obniżenie semafora - jeśli nie ma aktualnie miejsca na basenie, czeka
             wyslany.pozwolenie = true; // Klient dostaje pozwolenie
             pthread_mutex_lock(&klient_mutex); // Blokada muteksu
@@ -279,9 +285,9 @@ void* wypuszczanie()
 // Obsługa okresowego zamknięcia
 void okresowe_zamkniecie_handler()
 {
-    pthread_mutex_lock(&klient_mutex); // Blokada muteksu
     if (!zamkniecie_handled) // Sprawdza, czy okresowe zamknięcie nie zostało już obsłużone
     {
+        pthread_mutex_lock(&klient_mutex); // Blokada muteksu
         for (int i = 0; i < licznik_klientow; i++) // Usuwa wszystkie PID w tablicy
         {
             klienci_w_basenie[i] = 0;
@@ -289,11 +295,12 @@ void okresowe_zamkniecie_handler()
         licznik_klientow = 0; // Resetuje licznik klientów
         licznik_klientow_wiek = 0;
         suma_wieku = 0;
+        pthread_mutex_unlock(&klient_mutex);
         semctl(ID_semafora_rekreacyjny, 0, SETVAL, MAKS_REKREACYJNY); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
         zamkniecie_handled = true; // Oznacza okresowe zamknięcie jako obsłużone
         printf("%s[%s] Ratownik basenu rekreacyjnego wyprosił wszystkich klientów%s\n", COLOR5, timestamp(), RESET);
+        wyswietl_basen();
     }
-    pthread_mutex_unlock(&klient_mutex);
 }
 
 // Obsługa SIGINT

@@ -141,6 +141,8 @@ void* przyjmowanie()
         if(*okresowe_zamkniecie)
         {
             okresowe_zamkniecie_handler();
+            sleep(1);
+            continue;
         }
 
         // Odebranie wiadomości
@@ -148,7 +150,7 @@ void* przyjmowanie()
         {
             handle_error("ratownik_olimpijski: msgrcv ID_kolejki_ratownik_przyjmuje");
         }
-        
+
         // Decyzja o przyjęciu klienta
         if(odebrany.wiek>=18 && *okresowe_zamkniecie == false && sygnal == false) // Sprawdzenie, czy klient ma odpowiedni wiek, nie trwa okresowe zamknięcie lub nie został wysłany sygnał
         {
@@ -241,19 +243,20 @@ void* wypuszczanie()
 // Obsługa okresowego zamknięcia
 void okresowe_zamkniecie_handler()
 {
-    pthread_mutex_lock(&klient_mutex); // Blokada muteksu
     if (!zamkniecie_handled) // Sprawdza, czy okresowe zamknięcie nie zostało już obsłużone
     {
+        pthread_mutex_lock(&klient_mutex); // Blokada muteksu
         for (int i = 0; i < licznik_klientow; i++) // Usuwa wszystkie PID w tablicy
         {
             klienci_w_basenie[i] = 0;
         }
         licznik_klientow = 0; // Resetuje licznik klientów
+        pthread_mutex_unlock(&klient_mutex);
         semctl(ID_semafora_olimpijski, 0, SETVAL, MAKS_OLIMPIJSKI); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
         zamkniecie_handled = true; // Oznacza okresowe zamknięcie jako obsłużone
         printf("%s[%s] Ratownik basenu olimpijskiego wyprosił wszystkich klientów%s\n", COLOR6, timestamp(), RESET);
+        wyswietl_basen();
     }
-    pthread_mutex_unlock(&klient_mutex);
 }
 
 // Obsługa SIGINT

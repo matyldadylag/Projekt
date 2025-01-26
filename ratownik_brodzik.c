@@ -138,6 +138,8 @@ void* przyjmowanie()
         if(*okresowe_zamkniecie)
         {
             okresowe_zamkniecie_handler();
+            sleep(1);
+            continue;
         }
 
         // Odebranie wiadomości
@@ -149,6 +151,10 @@ void* przyjmowanie()
         // Decyzja o przyjęciu klienta
         if(odebrany.wiek <= 5 && *okresowe_zamkniecie == false && sygnal == false) // Sprawdzenie, czy klient ma odpowiedni wiek, nie trwa okresowe zamknięcie lub nie został wysłany sygnał
         {
+            if(*okresowe_zamkniecie==true)
+            {
+                continue;
+            }
             semafor_p(ID_semafora_brodzik, 0); // Obniżenie semafora - jeśli nie ma aktualnie miejsca na basenie, czeka
             wyslany.pozwolenie = true; // Klient dostaje pozwolenie
             pthread_mutex_lock(&klient_mutex); // Blokada muteksu
@@ -238,19 +244,20 @@ void* wypuszczanie()
 // Obsługa okresowego zamknięcia
 void okresowe_zamkniecie_handler()
 {
-    pthread_mutex_lock(&klient_mutex); // Blokada muteksu
     if (!zamkniecie_handled) // Sprawdza, czy okresowe zamknięcie nie zostało już obsłużone
     {
+        pthread_mutex_lock(&klient_mutex); // Blokada muteksu
         for (int i = 0; i < licznik_klientow; i++) // Usuwa wszystkie PID w tablicy
         {
             klienci_w_basenie[i] = 0;
         }
         licznik_klientow = 0; // Resetuje licznik klientów
+        pthread_mutex_unlock(&klient_mutex);
         semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
         zamkniecie_handled = true; // Oznacza okresowe zamknięcie jako obsłużone
         printf("%s[%s] Ratownik brodzika wyprosił wszystkich klientów%s\n", COLOR4, timestamp(), RESET);
+        wyswietl_basen();
     }
-    pthread_mutex_unlock(&klient_mutex);
 }
 
 // Obsługa SIGINT
@@ -270,6 +277,40 @@ void SIGINT_handler(int sig)
     printf("%s[%s] Ratownik brodzika kończy działanie%s\n", COLOR4, timestamp(), RESET);
 
     exit(0);
+}
+
+void SIGUSR1_handler(int sig)
+{
+    // Komunikat o sygnale
+    printf("%s[%s] Ratownik brodzika wywołał SIGUSR1%s\n", COLOR4, timestamp(), RESET);
+    // Ustawia zmienną globalną sygnał na true - ratownik nie przyjmuje klientów
+    sygnal = true;
+    // Wysyła sygnał do klientów w tablicy
+    for (int i = 0; i < licznik_klientow; i++)
+    {
+        kill(klienci_w_basenie[i], SIGUSR1);
+    }
+    // Wyprasza klientów - usuwa PID z tablicy i resetuje licznik klientów
+    pthread_mutex_lock(&klient_mutex); // Blokada muteksu
+    if (!zamkniecie_handled) // Sprawdza, czy okresowe zamknięcie nie zostało już obsłużone
+    {
+        for (int i = 0; i < licznik_klientow; i++) // Usuwa wszystkie PID w tablicy
+        {
+            klienci_w_basenie[i] = 0;
+        }
+        licznik_klientow = 0; // Resetuje licznik klientów
+        semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        printf("%s[%s] Ratownik brodzika wyprosił wszystkich klientów%s\n", COLOR4, timestamp(), RESET);
+    }
+    pthread_mutex_unlock(&klient_mutex);
+}
+
+void SIGUSR2_handler(int sig)
+{
+    // Komunikat o sygnale
+    printf("%s[%s] Ratownik brodzika wywołał SIGUSR2%s\n", COLOR4, timestamp(), RESET);
+    // Ustawia zmienną globalną sygnał na true - ratownik znów przyjmuje klientów
+    sygnal = false;
 }
 
 void wyswietl_basen()
