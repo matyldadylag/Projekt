@@ -58,6 +58,13 @@ struct komunikat
     bool pozwolenie;
 };
 
+// Funkcja do obsługi błędów
+void handle_error(const char *msg)
+{
+    perror(msg);
+    exit(EXIT_FAILURE);
+}
+
 // Funkcje operacji semaforowych
 static void semafor_v(int semafor_id, int numer_semafora)
 {
@@ -91,11 +98,4 @@ char* timestamp()
 	static char time_str[9];
 	strftime(time_str, sizeof(time_str), "%H:%M:%S", localtime(&(time_t){time(NULL)}));
 	return time_str;
-}
-
-// Funkcja do obsługi błędów
-void handle_error(const char *msg)
-{
-    perror(msg);
-    exit(EXIT_FAILURE);
 }
