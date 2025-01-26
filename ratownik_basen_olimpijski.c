@@ -160,22 +160,23 @@ void* przyjmowanie()
             handle_error("ratownik_olimpijski: msgrcv ID_kolejki_ratownik_przyjmuje");
         }
 
+        wyslany.pozwolenie = false; // Zakłada że klient nie zostanie przyjęty. Jeśli go przyjmie, zmienia na true, jeśli nie, zostaje false
+
         // Decyzja o przyjęciu klienta
         if(odebrany.wiek>=18 && *okresowe_zamkniecie == false && sygnal == false) // Sprawdzenie, czy klient ma odpowiedni wiek, nie trwa okresowe zamknięcie lub nie został wysłany sygnał
         {
             semafor_p(ID_semafora_olimpijski, 0); // Obniżenie semafora - jeśli nie ma aktualnie miejsca na basenie, czeka
-            wyslany.pozwolenie = true; // Klient dostaje pozwolenie
-            pthread_mutex_lock(&klient_mutex); // Blokada muteksu
-            if(licznik_klientow>=MAKS_OLIMPIJSKI)
+            if(sygnal == false)
             {
-                handle_error("ratownik_rekreacyjny: licznik_klientow poza zakresem");
-            }
-            klienci_w_basenie[licznik_klientow++] = odebrany.PID; // Dodanie klienta do tablicy i podwyższenie licznika klientów
-            pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
-        }
-        else
-        {
-            wyslany.pozwolenie = false;
+                wyslany.pozwolenie = true; // Klient dostaje pozwolenie
+                pthread_mutex_lock(&klient_mutex); // Blokada muteksu
+                if(licznik_klientow>=MAKS_OLIMPIJSKI)
+                {
+                    handle_error("ratownik_rekreacyjny: licznik_klientow poza zakresem");
+                }
+                klienci_w_basenie[licznik_klientow++] = odebrany.PID; // Dodanie klienta do tablicy i podwyższenie licznika klientów
+                pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
+            }            
         }
 
         // Wysłanie wiadomości

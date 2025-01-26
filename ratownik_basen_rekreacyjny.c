@@ -179,6 +179,8 @@ void* przyjmowanie()
             temp = (suma_wieku + odebrany.wiek + odebrany.wiek_opiekuna)/(licznik_klientow_wiek+2);
         }
 
+        wyslany.pozwolenie = false; // Zakłada że klient nie zostanie przyjęty. Jeśli go przyjmie, zmienia na true, jeśli nie, zostaje false
+
         // Decyzja o przyjęciu klienta
         if(temp <= 40 && *okresowe_zamkniecie == false &&  sygnal == false) // Sprawdzenie, czy nie trwa okresowe zamknięcie lub nie został wysłany sygnał
         {
@@ -187,20 +189,19 @@ void* przyjmowanie()
                 continue;
             }
             semafor_p(ID_semafora_rekreacyjny, 0); // Obniżenie semafora - jeśli nie ma aktualnie miejsca na basenie, czeka
-            wyslany.pozwolenie = true; // Klient dostaje pozwolenie
-            pthread_mutex_lock(&klient_mutex); // Blokada muteksu
-            if(licznik_klientow>=MAKS_REKREACYJNY)
+            if(sygnal == false)
             {
-                handle_error("ratownik_rekreacyjny: licznik_klientow poza zakresem");
+                wyslany.pozwolenie = true; // Klient dostaje pozwolenie
+                pthread_mutex_lock(&klient_mutex); // Blokada muteksu
+                if(licznik_klientow>=MAKS_REKREACYJNY)
+                {
+                    handle_error("ratownik_rekreacyjny: licznik_klientow poza zakresem");
+                }
+                klienci_w_basenie[licznik_klientow++] = odebrany.PID; // Dodanie klienta do tablicy i podwyższenie licznika klientów
+                suma_wieku = suma_wieku + odebrany.wiek + odebrany.wiek_opiekuna; // Niezależnie od tego czy to opiekun z dzieckiem, czy klient bez dzieci
+                licznik_klientow_wiek += (odebrany.wiek_opiekuna == 0) ? 1 : 2; // W zależności od tego czy to klient sam czy z dzieckiem, dodaje do licznika_wiek 1 lub 2
+                pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
             }
-            klienci_w_basenie[licznik_klientow++] = odebrany.PID; // Dodanie klienta do tablicy i podwyższenie licznika klientów
-            suma_wieku = suma_wieku + odebrany.wiek + odebrany.wiek_opiekuna; // Niezależnie od tego czy to opiekun z dzieckiem, czy klient bez dzieci
-            licznik_klientow_wiek += (odebrany.wiek_opiekuna == 0) ? 1 : 2; // W zależności od tego czy to klient sam czy z dzieckiem, dodaje do licznika_wiek 1 lub 2
-            pthread_mutex_unlock(&klient_mutex); // Odblokowanie muteksu
-        }
-        else
-        {
-            wyslany.pozwolenie = false;
         }
 
         // Wysłanie wiadomości

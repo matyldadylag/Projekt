@@ -149,13 +149,13 @@ int main()
     FILE *fp = popen("bash -c 'ulimit -u'", "r"); // Otwarcie łącza
     if(fp == NULL) 
     {
-        handle_error("popen");
+        handle_error("zarzadca: popen");
     }
     int maks_procesy = 0;
     if(fscanf(fp, "%d", &maks_procesy) != 1) // Zczytanie wartości wykonania polecenia z pliku fp do zmiennej maks_procesy
     {
         pclose(fp);
-        printf("scanf maks_procesy\n");
+        printf("zarzadca: scanf maks_procesy\n");
         exit(EXIT_FAILURE);
     }
     pclose(fp); // Zamknięcie łącza
@@ -165,17 +165,17 @@ int main()
     printf("Podaj maksymalną liczbę klientów: ");
     if(scanf("%d", &maks_klientow) != 1) // Użytkownik podaje maksymalną liczbę klientów
     {
-        printf("scanf maks_klientow - podano złą wartość\n");
+        printf("zarzadca: scanf maks_klientow - podano złą wartość\n");
         exit(EXIT_FAILURE);
     }
     if(maks_klientow<0) // Sprawdzenie czy liczba klientów nie jest mniejsza od 0
     {
-        printf("maks_klientow - podano za małą wartość\n");
+        printf("zarzadca: maks_klientow - podano za małą wartość\n");
         exit(EXIT_FAILURE);
     }
     if(maks_klientow + 6 > maks_procesy) // Sprawdzenie czy liczba klientów + pozostałych procesów nie przekracza limitu
     {
-        printf("Przekroczono limit ilości procesów\n");
+        printf("zarzadca: przekroczono limit ilości procesów\n");
         exit(EXIT_FAILURE);
     }
 
@@ -183,7 +183,7 @@ int main()
     printf("Podaj czas pracy basenu (w sekundach): ");
     if(scanf("%d", czas_pracy) != 1) // Użytkownik podaje czas pracy programu
     {
-        printf("scanf czas_pracy - podano złą wartość\n");
+        printf("zarzadca: scanf czas_pracy - podano złą wartość\n");
         exit(EXIT_FAILURE);
     }
     czas_zamkniecia = time(NULL) + *czas_pracy; // Ustalenie czasu zamknięcia
@@ -278,7 +278,7 @@ int main()
  
         }
         maks_klientow--;
-        sleep(1);
+        sleep(rand()%5+1);
     }
 
     // Wyświetlenie komunikatu o przekroczeniu maksymalnej liczby klientów
@@ -393,8 +393,8 @@ void* czasomierz()
     time_t czas_otwarcia = time(NULL);
     time_t czas_polowy = czas_otwarcia + (czas_zamkniecia - czas_otwarcia) / 2;
     
-    // Czas przerwy to CZAS_PRZERWY_PROCENT całkowitego czasu otwarcia basenu
-    int czas_przerwy = (int)((czas_zamkniecia - czas_otwarcia) * CZAS_PRZERWY_PROCENT);
+    // Czas przerwy to procent całkowitego czasu otwarcia basenu
+    int czas_przerwy = (int)((czas_zamkniecia - czas_otwarcia) * 0.20);
     // Jeśli czas przerwy jest krótszy niż sekunda, ustawia go na 1
     if (czas_przerwy < 1)
     {

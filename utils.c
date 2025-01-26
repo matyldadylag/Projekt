@@ -16,22 +16,27 @@
 #include <pthread.h>
 #include <errno.h>
 
-// Długość biletu czasowego - maksymalny czas, jaki proces może spędzić na basenie (w sekundach)
-#define BILET 30
-// Czas przerwy jest wyliczany procentowo na podstawie tego, jak długo basen jest otwarty
-#define CZAS_PRZERWY_PROCENT 0.25
-
-// Semafory basenów - maksymalna liczba osób w danym basenie
-#define MAKS_OLIMPIJSKI 30
-#define MAKS_REKREACYJNY 20
+// Długość biletu czasowego klienta
+#define BILET 10
+// Maksymalne pojemności poszczególnych basenów
 #define MAKS_BRODZIK 10
-
-// Kolejki komunikatów - adresy dla kolejek komunikatów
+#define MAKS_REKREACYJNY 20
+#define MAKS_OLIMPIJSKI 30
+// Adresy do kolejek komunikatów
 #define KASJER_VIP 1 // Musi mieć mniejszą wartość niż KASJER
 #define KASJER 2
 #define RATOWNIK_BRODZIK 11
 #define RATOWNIK_REKREACYJNY 12
 #define RATOWNIK_OLIMPIJSKI 13
+
+// Kolorowanie tekstu
+const char *RESET = "\033[0m";
+const char *COLOR1 = "\033[38;2;228;3;3m";
+const char *COLOR2 = "\033[38;2;255;140;0m";
+const char *COLOR3 = "\033[38;2;255;237;0m";
+const char *COLOR4 = "\033[38;2;0;138;0m";
+const char *COLOR5 = "\033[38;2;0;72;255m";
+const char *COLOR6 = "\033[38;2;117;5;135m";
 
 // Struktura przechowująca dane klienta
 struct dane_klienta
@@ -52,12 +57,6 @@ struct komunikat
     int wiek_opiekuna;
     bool pozwolenie;
 };
-
-void handle_error(const char *msg)
-{
-    perror(msg);
-    exit(EXIT_FAILURE);
-}
 
 // Funkcje operacji semaforowych
 static void semafor_v(int semafor_id, int numer_semafora)
@@ -94,11 +93,9 @@ char* timestamp()
 	return time_str;
 }
 
-// Kolorowanie tekstu
-const char *RESET = "\033[0m";
-const char *COLOR1 = "\033[38;2;228;3;3m";
-const char *COLOR2 = "\033[38;2;255;140;0m";
-const char *COLOR3 = "\033[38;2;255;237;0m";
-const char *COLOR4 = "\033[38;2;0;138;0m";
-const char *COLOR5 = "\033[38;2;0;72;255m";
-const char *COLOR6 = "\033[38;2;117;5;135m";
+// Funkcja do obsługi błędów
+void handle_error(const char *msg)
+{
+    perror(msg);
+    exit(EXIT_FAILURE);
+}
