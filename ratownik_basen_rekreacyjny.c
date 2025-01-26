@@ -3,10 +3,11 @@
 
 // ID struktur korzystanych przez wątki
 int ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_rekreacyjny;
-// Zmienna określająca czy trwa okresowe zamknięcie, pobierana z pamięci dzielonej
+// Zmienne z pamięci dzielonej
+int *czas_pracy;
 bool *okresowe_zamkniecie;
 // Wątki
-pthread_t przyjmuje, wypuszcza;
+pthread_t przyjmuje, wypuszcza, wysyla_sygnal;
 // Flaga sprawdzające, czy wydarzenie zostało już obsłużone
 bool zamkniecie_handled = false;
 // Zmienna z informacją, czy został wysłany sygnał SIGUSR1
@@ -24,10 +25,9 @@ pthread_mutex_t klient_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void* przyjmowanie();
 void* wypuszczanie();
+void *wysylanie_sygnalow();
 void okresowe_zamkniecie_handler();
 void SIGINT_handler(int sig);
-void SIGUSR1_handler(int sig);
-void SIGUSR2_handler(int sig);
 void wyswietl_basen();
 
 int main()
@@ -40,18 +40,6 @@ int main()
     {
         handle_error("ratownik_rekreacyjny: signal SIGINT_handler");
     }
-
-    /*// Obsługa sygnału SIGUSR1
-    if (signal(SIGUSR1, SIGUSR1_handler) == SIG_ERR)
-    {
-        handle_error("ratownik_rekreacyjny: signal SIGUSR1_handler");
-    }
-
-    // Obsługa sygnału SIGUSR1
-    if (signal(SIGUSR2, SIGUSR2_handler) == SIG_ERR)
-    {
-        handle_error("ratownik_rekreacyjny: signal SIGUSR2_handler");
-    }*/
 
     // Uzyskanie dostępu do kolejki komunikatów dla ratowników - przyjmowanie klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
@@ -77,7 +65,7 @@ int main()
         handle_error("ratownik_rekreacyjny: msgget ID_kolejki_ratownik_wypuszcza");
     }
 
-    // Utworzenie semafora dla basenu rekreacyjnego
+    // Uzyskanie dostępu do semafora dla basenu rekreacyjnego
     key_t klucz_semafora_rekreacyjny = ftok(".", 2003);
     if(klucz_semafora_rekreacyjny == -1)
     {
@@ -88,9 +76,22 @@ int main()
     {
         handle_error("ratownik_rekreacyjny: semget ID_semafora_rekreacyjny");
     }
-    if(semctl(ID_semafora_rekreacyjny, 0, SETVAL, MAKS_REKREACYJNY) == -1)
+
+    // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną czas_pracy
+    key_t klucz_pamieci_czas_pracy = ftok(".", 1400);
+    if(klucz_pamieci_czas_pracy==-1)
     {
-        handle_error("ratownik_rekreacyjny: semctl SETVAL ID_semafora_rekreacyjny");
+        handle_error("ratownik_rekreacyjny: ftok klucz_pamieci_czas_pracy");
+    }
+    int ID_pamieci_czas_pracy = shmget(klucz_pamieci_czas_pracy, sizeof(int), 0600 | IPC_CREAT);
+    if(ID_pamieci_czas_pracy==-1)
+    {
+        handle_error("ratownik_rekreacyjny: shmget ID_pamieci_czas_pracy");
+    }
+    czas_pracy = (int*)shmat(ID_pamieci_czas_pracy, NULL, 0);
+    if (czas_pracy == (void*)-1)
+    {
+        handle_error("ratownik_rekreacyjny: shmat czas_pracy");
     }
 
     // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
@@ -112,7 +113,7 @@ int main()
 
     sygnal = false;
 
-    // Utworzenie wątków do przyjmowania i wypuszczania klientów
+    // Utworzenie wątków do przyjmowania, wypuszczania klientów i wysyłania sygnałów
     if(pthread_create(&przyjmuje, NULL, przyjmowanie, NULL) != 0)
     {
         handle_error("ratownik_rekreacyjny: pthread_create przyjmuje");
@@ -121,8 +122,12 @@ int main()
     {
         handle_error("ratownik_rekreacyjny: pthread_create wypuszcza");
     }
+    if(pthread_create(&wysyla_sygnal, NULL, wysylanie_sygnalow, NULL) != 0)
+    {
+        handle_error("ratownik_rekreacyjny: pthread_create wysyla_sygnal");
+    }
 
-    // Dołączenie wątków do przyjmowania i wypuszczania klientów
+    // Dołączenie wątków do przyjmowania, wypuszczania klientów i wysyłania sygnałów
     if(pthread_join(przyjmuje, NULL) != 0)
     {
         handle_error("ratownik_rekreacyjny: pthread_join przyjmuje");
@@ -131,6 +136,11 @@ int main()
     {
         handle_error("ratownik_rekreacyjny: pthread_join wypuszczanie");
     }
+    if(pthread_join(wysyla_sygnal, NULL) != 0)
+    {
+        handle_error("ratownik_rekreacyjny: pthread_join wysyla_sygnal");
+    }
+
 
     return 0;
 }
@@ -282,6 +292,82 @@ void* wypuszczanie()
     }
 }
 
+// Funkcja dla wątku wysyłającego sygnały SIGUSR1 i SIGUSR2
+void *wysylanie_sygnalow()
+{
+    srand(getpid());
+    // Wylosowanie godzin wysłania sygnałów - mają się zmieścić w czas otwarcia kompleksu
+    time_t start = time(NULL); // Zmienna z początkiem pracy wątku (ratownika)
+    time_t wyslij_SIGUSR1 = start + rand() % (*czas_pracy / 4) + 10;
+    time_t wyslij_SIGUSR2 = wyslij_SIGUSR1 + rand() % (*czas_pracy / 4) + 5;
+
+    // SIGUSR1
+    // Oczekiwanie na czas wysłania sygnału
+    while (time(NULL) < wyslij_SIGUSR1)
+    {
+        sleep(1);
+    }
+
+    // Ustawia zmienną globalną sygnał na true - ratownik nie przyjmuje klientów
+    sygnal = true;
+
+    // Wysyła sygnał do klientów w tablicy
+    pid_t pid_SIGUSR1[MAKS_REKREACYJNY]; // Tablica do zapamiętywania, którzy klienci otrzymali SIGUSR1, aby potem im odesłać SIGUSR2
+    int licznik_SIGUSR1 = 0;
+    for (int i = 0; i < licznik_klientow; i++)
+    {
+        kill(klienci_w_basenie[i], SIGUSR1);
+        pid_SIGUSR1[licznik_SIGUSR1++] = klienci_w_basenie[i];   
+    }
+
+    // Komunikat o sygnale
+    printf("%s[%s] Ratownik basenu rekreacyjnego wywołał SIGUSR1%s\n", COLOR5, timestamp(), RESET);
+
+    // Wyprasza klientów - usuwa PID z tablicy i resetuje licznik klientów
+    pthread_mutex_lock(&klient_mutex); // Blokada muteksu
+    if (!zamkniecie_handled) // Sprawdza, czy okresowe zamknięcie nie zostało już obsłużone
+    {
+        for (int i = 0; i < licznik_klientow; i++) // Usuwa wszystkie PID w tablicy
+        {
+            klienci_w_basenie[i] = 0;
+        }
+        licznik_klientow = 0; // Resetuje licznik klientów
+            licznik_klientow_wiek = 0;
+        suma_wieku = 0;
+        if(semctl(ID_semafora_rekreacyjny, 0, SETVAL, MAKS_REKREACYJNY) == -1)
+        {
+            handle_error("ratownik_rekreacyjny: semctl SETVAL ID_semafora_rekreacyjny"); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        }
+        printf("%s[%s] Ratownik basenu rekreacyjnego wyprosił wszystkich klientów%s\n", COLOR5, timestamp(), RESET);
+    }
+    pthread_mutex_unlock(&klient_mutex);
+
+    // Wyświetlenie aktualnego stanu basenu
+    wyswietl_basen();
+
+    // SIGUSR2
+    // Oczekiwanie na czas wysłania sygnału
+    while (time(NULL) < wyslij_SIGUSR2)
+    {
+        sleep(1);
+    }
+
+    // Ustawia zmienną globalną sygnał na true - ratownik przyjmuje klientów
+    sygnal = false;
+
+    // Wysyła sygnał do klientów w tablicy
+    for (int i = 0; i < licznik_klientow; i++)
+    {
+        kill(klienci_w_basenie[i], SIGUSR2);
+    }
+
+    // Komunikat o sygnale
+    printf("%s[%s] Ratownik basenu rekreacyjnego wywołał SIGUSR2%s\n", COLOR5, timestamp(), RESET);
+
+    // Zakończenie wątku 
+    pthread_exit(NULL);
+}
+
 // Obsługa okresowego zamknięcia
 void okresowe_zamkniecie_handler()
 {
@@ -296,7 +382,10 @@ void okresowe_zamkniecie_handler()
         licznik_klientow_wiek = 0;
         suma_wieku = 0;
         pthread_mutex_unlock(&klient_mutex);
-        semctl(ID_semafora_rekreacyjny, 0, SETVAL, MAKS_REKREACYJNY); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        if(semctl(ID_semafora_rekreacyjny, 0, SETVAL, MAKS_REKREACYJNY) == -1)
+        {
+            handle_error("ratownik_rekreacyjny: semctl SETVAL ID_semafora_rekreacyjny");  // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        }
         zamkniecie_handled = true; // Oznacza okresowe zamknięcie jako obsłużone
         printf("%s[%s] Ratownik basenu rekreacyjnego wyprosił wszystkich klientów%s\n", COLOR5, timestamp(), RESET);
         wyswietl_basen();

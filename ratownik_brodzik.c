@@ -36,18 +36,6 @@ int main()
         handle_error("ratownik_brodzik: signal SIGINT_handler");
     }
 
-    /*// Obsługa sygnału SIGUSR1
-    if (signal(SIGUSR1, SIGUSR1_handler) == SIG_ERR)
-    {
-        handle_error("ratownik_brodzik: signal SIGUSR1_handler");
-    }
-
-    // Obsługa sygnału SIGUSR1
-    if (signal(SIGUSR2, SIGUSR2_handler) == SIG_ERR)
-    {
-        handle_error("ratownik_brodzik: signal SIGUSR2_handler");
-    }*/
-
     // Uzyskanie dostępu do kolejki komunikatów dla ratowników - przyjmowanie klientów
     key_t klucz_kolejki_ratownik_przyjmuje = ftok(".", 7942);
     if(klucz_kolejki_ratownik_przyjmuje==-1)
@@ -88,17 +76,17 @@ int main()
     key_t klucz_pamieci_czas_pracy = ftok(".", 1400);
     if(klucz_pamieci_czas_pracy==-1)
     {
-        handle_error("zarzadca: ftok klucz_pamieci_czas_pracy");
+        handle_error("ratownik_brodzik: ftok klucz_pamieci_czas_pracy");
     }
     int ID_pamieci_czas_pracy = shmget(klucz_pamieci_czas_pracy, sizeof(int), 0600 | IPC_CREAT);
     if(ID_pamieci_czas_pracy==-1)
     {
-        handle_error("zarzadca: shmget ID_pamieci_czas_pracy");
+        handle_error("ratownik_brodzik: shmget ID_pamieci_czas_pracy");
     }
     czas_pracy = (int*)shmat(ID_pamieci_czas_pracy, NULL, 0);
     if (czas_pracy == (void*)-1)
     {
-        handle_error("zarzadca: shmat czas_pracy");
+        handle_error("ratownik_brodzik: shmat czas_pracy");
     }
 
     // Uzyskanie dostępu do segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
@@ -269,6 +257,7 @@ void* wypuszczanie()
 // Funkcja dla wątku wysyłającego sygnały SIGUSR1 i SIGUSR2
 void *wysylanie_sygnalow()
 {
+    srand(getpid());
     // Wylosowanie godzin wysłania sygnałów - mają się zmieścić w czas otwarcia kompleksu
     time_t start = time(NULL); // Zmienna z początkiem pracy wątku (ratownika)
     time_t wyslij_SIGUSR1 = start + rand() % (*czas_pracy / 4) + 10;
@@ -305,7 +294,10 @@ void *wysylanie_sygnalow()
             klienci_w_basenie[i] = 0;
         }
         licznik_klientow = 0; // Resetuje licznik klientów
-        semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        if(semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK) == -1) // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        {
+            handle_error("ratownik_brodzik: semctl SETVAL ID_semafora_brodzik");
+        }
         printf("%s[%s] Ratownik brodzika wyprosił wszystkich klientów%s\n", COLOR4, timestamp(), RESET);
     }
     pthread_mutex_unlock(&klient_mutex);
@@ -348,7 +340,10 @@ void okresowe_zamkniecie_handler()
         }
         licznik_klientow = 0; // Resetuje licznik klientów
         pthread_mutex_unlock(&klient_mutex);
-        semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK); // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        if(semctl(ID_semafora_brodzik, 0, SETVAL, MAKS_BRODZIK) == -1) // Ustawia wartość semafora tak jakby nikogo nie było w basenie
+        {
+            handle_error("ratownik_brodzik: semctl SETVAL ID_semafora_brodzik");
+        }
         zamkniecie_handled = true; // Oznacza okresowe zamknięcie jako obsłużone
         printf("%s[%s] Ratownik brodzika wyprosił wszystkich klientów%s\n", COLOR4, timestamp(), RESET);
         wyswietl_basen();
