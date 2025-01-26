@@ -1,13 +1,14 @@
 #include "utils.c"
 
-time_t czas_wyjscia;
-// Flaga, czy klient pływa
-bool plywa;
+time_t czas_wyjscia; // O której klient ma wyjść z basenu
+bool plywa; // Flaga, czy klient pływa
+int wybor_basenu, basen_zakazany; // Zmiennie z aktualnym wyborem basenu klienta i zakazanym basenem przez SIGUSR1
 // Flaga, czy trwa okresowe zamknięcie, pobierana z pamięci dzielonej
 bool *okresowe_zamkniecie;
 
 void SIGINT_handler(int sig);
 void SIGUSR1_handler(int sig);
+void SIGUSR2_handler(int sig);
 
 int main()
 {
@@ -42,6 +43,12 @@ int main()
     if (signal(SIGUSR1, SIGUSR1_handler) == SIG_ERR)
     {
         handle_error("klient: signal SIGUSR1_handler");
+    }
+
+    // Obsługa sygnału SIGUSR2
+    if (signal(SIGUSR2, SIGUSR2_handler) == SIG_ERR)
+    {
+        handle_error("klient: signal SIGUSR2_handler");
     }
 
     // Utworzenie kolejki komunikatów dla kasjera
@@ -150,14 +157,18 @@ int main()
             if(*okresowe_zamkniecie==true)
             {
                 plywa = false;
+                sleep(1);
+                continue;
             }
             if(plywa == false)
             {
                 // Losowe wybranie basenu
-                klient.wybor_basenu = 11 + rand() % 3;
+                do {
+                    wybor_basenu = 11 + rand() % 3;
+                } while (wybor_basenu == basen_zakazany); // Losuje, dopóki nie wylosuje innego, niż ten, którym nie jest dozwolony
 
                 // Wysłanie wiadomości
-                wyslany.mtype = klient.wybor_basenu;
+                wyslany.mtype = wybor_basenu;
                 if(msgsnd(ID_kolejki_ratownik_przyjmuje, &wyslany, sizeof(struct komunikat) - sizeof(long), 0)==-1)
                 {
                     handle_error("klient: msgsnd ID_kolejki_ratownik_przyjmuje");
@@ -227,4 +238,10 @@ void SIGINT_handler(int sig)
 void SIGUSR1_handler(int sig)
 {
     plywa = false;
+    basen_zakazany = wybor_basenu;
+}
+
+void SIGUSR2_handler(int sig)
+{
+    basen_zakazany = 0;
 }

@@ -1,13 +1,14 @@
 #include "utils.c"
 
 // ID utworzonych struktur
-int ID_kolejki_kasjer, ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik, ID_semafora_rekreacyjny, ID_semafora_olimpijski, ID_pamieci_okresowe_zamkniecie;
+int ID_kolejki_kasjer, ID_kolejki_ratownik_przyjmuje, ID_kolejki_ratownik_wypuszcza, ID_semafora_brodzik, ID_semafora_rekreacyjny, ID_semafora_olimpijski, ID_pamieci_czas_pracy, ID_pamieci_okresowe_zamkniecie;
 // PID tworzonych procesów
 pid_t PID_kasjera, PID_ratownika_brodzik, PID_ratownika_rekreacyjny, PID_ratownika_olimpijski;
-// Zmienne dotycząca czasu korzystane przez funkcję main i wątek
+// Zmienne dotyczące czasu wykorzystywane przez funkcję main i wątki
 bool czas_przekroczony;
 time_t czas_zamkniecia;
-// Flaga w pamięci dzielonej, wykorzystywana przez kasjera i ratowników
+// Zmienne dotyczące czasu przechowywane w pamięci dzielonej
+int *czas_pracy;
 bool *okresowe_zamkniecie;
 
 void SIGINT_handler(int sig);
@@ -109,6 +110,23 @@ int main()
     {
         handle_error("zarzadca: semctl ID_semafora_olimpijski");
     }
+
+    // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną czas_pracy
+    key_t klucz_pamieci_czas_pracy = ftok(".", 1400);
+    if(klucz_pamieci_czas_pracy==-1)
+    {
+        handle_error("zarzadca: ftok klucz_pamieci_czas_pracy");
+    }
+    ID_pamieci_czas_pracy = shmget(klucz_pamieci_czas_pracy, sizeof(int), 0600 | IPC_CREAT);
+    if(ID_pamieci_czas_pracy==-1)
+    {
+        handle_error("zarzadca: shmget ID_pamieci_czas_pracy");
+    }
+    czas_pracy = (int*)shmat(ID_pamieci_czas_pracy, NULL, 0);
+    if (czas_pracy == (void*)-1)
+    {
+        handle_error("zarzadca: shmat czas_pracy");
+    }
     
     // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
     key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
@@ -163,13 +181,12 @@ int main()
 
     // Obsługa czasu działania programu
     printf("Podaj czas pracy basenu (w sekundach): ");
-    int czas_pracy;
-    if(scanf("%d", &czas_pracy) != 1) // Użytkownik podaje czas pracy programu
+    if(scanf("%d", czas_pracy) != 1) // Użytkownik podaje czas pracy programu
     {
         printf("scanf czas_pracy - podano złą wartość\n");
         exit(EXIT_FAILURE);
     }
-    czas_zamkniecia = time(NULL) + czas_pracy; // Ustalenie czasu zamknięcia
+    czas_zamkniecia = time(NULL) + *czas_pracy; // Ustalenie czasu zamknięcia
     if(czas_zamkniecia<time(NULL)) // Sprawdzenie czy czas zamknięcia jest poprawny i już nie minął
     {
         printf("czas_zamkniecia - podano za krótki czas pracy\n");
@@ -291,7 +308,7 @@ int main()
 // Obsługa sygnału SIGINT
 void SIGINT_handler(int sig)
 {
-    if(system("killall -s 2 klient")==-1)
+    if(system("killall -s 2 klient 2>/dev/null")==-1) // Zabija wszystkie procesy o nazwie klient (przekierowywuje wyście błędu, bo prawdopodobnie dostanie "permission denied")
     {
         handle_error("zarzadca: system killal klient");
     }
@@ -342,14 +359,24 @@ void SIGINT_handler(int sig)
         handle_error("zarzadca: semctl ID_semafora_olimpijski");
     }
 
+    // Usuwa segment pamięci dzielonej dla czas_pracy
+    if(shmctl(ID_pamieci_czas_pracy, IPC_RMID, 0)==-1)
+    {
+        handle_error("zarzadca: shmctl ID_pamieci_czas_pracy");
+    }
+    if(shmdt(czas_pracy)==-1)
+    {
+        handle_error("zarzadca: shmdt czas_pracy");
+    }
+
     // Usuwa segment pamięci dzielonej dla okresowe_zamkniecie
     if(shmctl(ID_pamieci_okresowe_zamkniecie, IPC_RMID, 0)==-1)
     {
-        handle_error("shmctl ID_pamieci_okresowe_zamkniecie");
+        handle_error("zarzadca: shmctl ID_pamieci_okresowe_zamkniecie");
     }
     if(shmdt(okresowe_zamkniecie)==-1)
     {
-        handle_error("shmdt okresowe_zamkniecie");
+        handle_error("zarzadca: shmdt okresowe_zamkniecie");
     }
 
     // Komunikaty o zakończeniu pracy

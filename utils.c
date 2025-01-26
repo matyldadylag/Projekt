@@ -17,7 +17,7 @@
 #include <errno.h>
 
 // Długość biletu czasowego - maksymalny czas, jaki proces może spędzić na basenie (w sekundach)
-#define BILET 10
+#define BILET 30
 // Czas przerwy jest wyliczany procentowo na podstawie tego, jak długo basen jest otwarty
 #define CZAS_PRZERWY_PROCENT 0.25
 
@@ -41,7 +41,6 @@ struct dane_klienta
     int wiek_opiekuna;
     bool VIP;
     bool czepek;
-    int wybor_basenu;
 };
 
 // Struktura komunikatu
