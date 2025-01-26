@@ -15,10 +15,9 @@ Okresowo centrum jest zamykane, aby umożliwić obsłudze wymianę wody we wszys
 
 Napisz programy ratownika, kasjera i klientów, który zagwarantuje sprawną obsługę i korzystanie z obiektu zgodnie z niżej podanym regulaminem.
 
-### Podpowiedź: 
-Zaimplementuj dziecko i jego opiekuna jako jeden proces.
+Podpowiedź: zaimplementuj dziecko i jego opiekuna jako jeden proces.
 
-## Regulamin pływalni:
+Regulamin pływalni:
 - Tylko osoby pełnoletnie mogą korzystać z basenu olimpijskiego.
 - Dzieci poniżej 10 roku życia nie mogą przebywać na basenie bez opieki osoby dorosłej.
 - W brodziku kąpać mogą się jedynie dzieci do 5 roku życia i ich opiekunowie.
