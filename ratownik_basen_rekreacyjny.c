@@ -357,9 +357,9 @@ void *wysylanie_sygnalow()
     sygnal = false;
 
     // Wysyła sygnał do klientów w tablicy
-    for (int i = 0; i < licznik_klientow; i++)
+    for (int i = 0; i < licznik_SIGUSR1; i++)
     {
-        kill(klienci_w_basenie[i], SIGUSR2);
+        kill(pid_SIGUSR1[i], SIGUSR2);
     }
 
     // Komunikat o sygnale
@@ -397,8 +397,8 @@ void okresowe_zamkniecie_handler()
 void SIGINT_handler(int sig)
 {
     // Anulowanie wątków przyjmowania i wypuszczania klientów
-    pthread_kill(przyjmuje, SIGINT);
-    pthread_kill(wypuszcza, SIGINT);
+    pthread_cancel(przyjmuje);
+    pthread_cancel(wypuszcza);
 
     // Usunięcie muteksu
     if (pthread_mutex_destroy(&klient_mutex) != 0)

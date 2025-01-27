@@ -26,6 +26,54 @@ int main()
         handle_error("zarzadca: signal SIGINT_handler");
     }
 
+    // Sprawdzenie limitu wywołanych procesów przez łącze komunikacyjne
+    FILE *fp = popen("bash -c 'ulimit -u'", "r"); // Otwarcie łącza
+    if(fp == NULL) 
+    {
+        handle_error("zarzadca: popen");
+    }
+    int maks_procesy = 0;
+    if(fscanf(fp, "%d", &maks_procesy) != 1) // Zczytanie wartości wykonania polecenia z pliku fp do zmiennej maks_procesy
+    {
+        pclose(fp);
+        printf("zarzadca: scanf maks_procesy\n");
+        exit(EXIT_FAILURE);
+    }
+    pclose(fp); // Zamknięcie łącza
+
+    // Ustalenie maksymalnej liczby klientów
+    int maks_klientow = 0;
+    printf("Podaj maksymalną liczbę klientów: ");
+    if(scanf("%d", &maks_klientow) != 1) // Użytkownik podaje maksymalną liczbę klientów
+    {
+        printf("zarzadca: scanf maks_klientow - podano złą wartość\n");
+        exit(EXIT_FAILURE);
+    }
+    if(maks_klientow<0) // Sprawdzenie czy liczba klientów nie jest mniejsza od 0
+    {
+        printf("zarzadca: maks_klientow - podano za małą wartość\n");
+        exit(EXIT_FAILURE);
+    }
+    if(maks_klientow + 6 > maks_procesy) // Sprawdzenie czy liczba klientów + pozostałych procesów nie przekracza limitu
+    {
+        printf("zarzadca: przekroczono limit ilości procesów\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Obsługa czasu działania programu
+    printf("Podaj czas pracy basenu (w sekundach): ");
+    if(scanf("%d", czas_pracy) != 1) // Użytkownik podaje czas pracy programu
+    {
+        printf("zarzadca: scanf czas_pracy - podano złą wartość\n");
+        exit(EXIT_FAILURE);
+    }
+    czas_zamkniecia = time(NULL) + *czas_pracy; // Ustalenie czasu zamknięcia
+    if(czas_zamkniecia<time(NULL)) // Sprawdzenie czy czas zamknięcia jest poprawny i już nie minął
+    {
+        printf("czas_zamkniecia - podano za krótki czas pracy\n");
+        exit(EXIT_FAILURE);
+    }
+
     // Utworzenie potrzebnych struktur
     // Utworzenie kolejki komunikatów dla kasjera
     key_t klucz_kolejki_kasjer = ftok(".", 6377);
@@ -145,54 +193,6 @@ int main()
         handle_error("zarzadca: shmat okresowe_zamkniecie");
     }
 
-    // Sprawdzenie limitu wywołanych procesów przez łącze komunikacyjne
-    FILE *fp = popen("bash -c 'ulimit -u'", "r"); // Otwarcie łącza
-    if(fp == NULL) 
-    {
-        handle_error("zarzadca: popen");
-    }
-    int maks_procesy = 0;
-    if(fscanf(fp, "%d", &maks_procesy) != 1) // Zczytanie wartości wykonania polecenia z pliku fp do zmiennej maks_procesy
-    {
-        pclose(fp);
-        printf("zarzadca: scanf maks_procesy\n");
-        exit(EXIT_FAILURE);
-    }
-    pclose(fp); // Zamknięcie łącza
-
-    // Ustalenie maksymalnej liczby klientów
-    int maks_klientow = 0;
-    printf("Podaj maksymalną liczbę klientów: ");
-    if(scanf("%d", &maks_klientow) != 1) // Użytkownik podaje maksymalną liczbę klientów
-    {
-        printf("zarzadca: scanf maks_klientow - podano złą wartość\n");
-        exit(EXIT_FAILURE);
-    }
-    if(maks_klientow<0) // Sprawdzenie czy liczba klientów nie jest mniejsza od 0
-    {
-        printf("zarzadca: maks_klientow - podano za małą wartość\n");
-        exit(EXIT_FAILURE);
-    }
-    if(maks_klientow + 6 > maks_procesy) // Sprawdzenie czy liczba klientów + pozostałych procesów nie przekracza limitu
-    {
-        printf("zarzadca: przekroczono limit ilości procesów\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Obsługa czasu działania programu
-    printf("Podaj czas pracy basenu (w sekundach): ");
-    if(scanf("%d", czas_pracy) != 1) // Użytkownik podaje czas pracy programu
-    {
-        printf("zarzadca: scanf czas_pracy - podano złą wartość\n");
-        exit(EXIT_FAILURE);
-    }
-    czas_zamkniecia = time(NULL) + *czas_pracy; // Ustalenie czasu zamknięcia
-    if(czas_zamkniecia<time(NULL)) // Sprawdzenie czy czas zamknięcia jest poprawny i już nie minął
-    {
-        printf("czas_zamkniecia - podano za krótki czas pracy\n");
-        exit(EXIT_FAILURE);
-    }
-
     // Komunikat o otwarciu kompleksu basenów
     printf("%s[%s] Kompleks basenów jest otwarty%s\n", COLOR1, timestamp(), RESET);
 
@@ -278,7 +278,7 @@ int main()
  
         }
         maks_klientow--;
-        sleep(rand()%5+1);
+        //sleep(rand()%3+1);
     }
 
     // Wyświetlenie komunikatu o przekroczeniu maksymalnej liczby klientów

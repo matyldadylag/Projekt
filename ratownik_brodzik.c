@@ -317,9 +317,9 @@ void *wysylanie_sygnalow()
     sygnal = false;
 
     // Wysyła sygnał do klientów w tablicy
-    for (int i = 0; i < licznik_klientow; i++)
+    for (int i = 0; i < licznik_SIGUSR1; i++)
     {
-        kill(klienci_w_basenie[i], SIGUSR2);
+        kill(pid_SIGUSR1[i], SIGUSR2);
     }
 
     // Komunikat o sygnale
