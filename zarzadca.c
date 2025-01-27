@@ -61,13 +61,14 @@ int main()
     }
 
     // Obsługa czasu działania programu
+    int temp_czas_pracy;
     printf("Podaj czas pracy basenu (w sekundach): ");
-    if(scanf("%d", czas_pracy) != 1) // Użytkownik podaje czas pracy programu
+    if(scanf("%d", &temp_czas_pracy) != 1) // Użytkownik podaje czas pracy programu
     {
         printf("zarzadca: scanf czas_pracy - podano złą wartość\n");
         exit(EXIT_FAILURE);
     }
-    czas_zamkniecia = time(NULL) + *czas_pracy; // Ustalenie czasu zamknięcia
+    czas_zamkniecia = time(NULL) + temp_czas_pracy; // Ustalenie czasu zamknięcia
     if(czas_zamkniecia<time(NULL)) // Sprawdzenie czy czas zamknięcia jest poprawny i już nie minął
     {
         printf("czas_zamkniecia - podano za krótki czas pracy\n");
@@ -175,6 +176,7 @@ int main()
     {
         handle_error("zarzadca: shmat czas_pracy");
     }
+    *czas_pracy= temp_czas_pracy;
     
     // Utworzenie segmentu pamięci dzielonej, która przechowuje zmienną bool okresowe_zamkniecie
     key_t klucz_pamieci_okresowe_zamkniecie = ftok(".", 9929);
