@@ -17,7 +17,7 @@
 #include <errno.h>
 
 // Długość biletu czasowego klienta
-#define BILET 1
+#define BILET 5
 // Maksymalne pojemności poszczególnych basenów
 #define MAKS_BRODZIK 10
 #define MAKS_REKREACYJNY 20

@@ -280,7 +280,7 @@ int main()
  
         }
         maks_klientow--;
-        //sleep(rand()%3+1);
+        sleep(rand()%3+1);
     }
 
     // Wyświetlenie komunikatu o przekroczeniu maksymalnej liczby klientów
